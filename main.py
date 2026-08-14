@@ -5,6 +5,7 @@
 """
 
 def run_main_pipeline():
+    print("Running main pipeline...")
     pass
 
 def parse_args(command_line_str: str) -> dict:

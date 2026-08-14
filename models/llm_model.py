@@ -1,7 +1,17 @@
-#models/llm_model.py
+# models/llm_model.py
 # +---------------------------------------------------------------------------+
 # |                                MODEL                                       |
 # +---------------------------------------------------------------------------+
+
+# Python Libraries
+
+# Vendor Libraries
+from google import genai
+
+from constants import MODEL_NAME
+
+# Local Libraries
+
 
 class LlmModel:
     """
@@ -21,9 +31,11 @@ class LlmModel:
         self.api_url = api_url
         self.model_name = model_name
 
+        self._client = self._init_model()
+
 
     def _init_model(self):
-        return
+        return genai.Client()
 
     def generate_response(self, prompt: str) -> str:
         """
@@ -32,3 +44,13 @@ class LlmModel:
         Args:
             prompt (str): The input prompt for the model.
         """
+
+        response = self._client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt
+        )
+
+        return self._filter_response(response)
+
+    def _filter_response(response):
+        return response
