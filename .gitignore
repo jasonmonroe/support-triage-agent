@@ -4,7 +4,9 @@ __pycache__/
 
 .DS_Store
 .env
+.cursor
 .idea
+.ruff_cache
 .venv
 .vscode
 log.txt

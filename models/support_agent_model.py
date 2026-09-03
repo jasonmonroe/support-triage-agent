@@ -1,6 +1,6 @@
-# models/llm_model.py
+# models/support_agent_model.py
 # +---------------------------------------------------------------------------+
-# |                                MODEL                                       |
+# |                            SUPPORT AGENT MODEL                            |
 # +---------------------------------------------------------------------------+
 
 # Python Libraries
@@ -13,14 +13,14 @@ from constants import MODEL_NAME
 # Local Libraries
 
 
-class LlmModel:
+class SupportAgentModel:
     """
     A class to represent a language model.
     """
 
     def __init__(self, api_key: str, api_url: str, model_name: str):
         """
-        Initializes the LlmModel instance.
+        Initializes the SupportAgentModel instance.
 
         Args:
             api_key (str): The API key for the model.
@@ -32,7 +32,6 @@ class LlmModel:
         self.model_name = model_name
 
         self._client = self._init_model()
-
 
     def _init_model(self):
         return genai.Client()
@@ -46,11 +45,17 @@ class LlmModel:
         """
 
         response = self._client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt
+            model=MODEL_NAME, contents=prompt
         )
 
-        return self._filter_response(response)
+        return self._format_response(self._filter_response(response))
 
     def _filter_response(response):
         return response
+
+    def _format_response(response):
+        # Output: issue
+        return response
+
+    def _ground_truth(self):
+        return ""
