@@ -7,16 +7,19 @@
 
 from abc import ABC
 
+import pandas as pd
+
 
 class SupportAgent(ABC):
     """
     A class to handle support agent operations.
     """
 
-    def __init__(self):
+    def __init__(self, ticket_df: pd.DataFrame):
         """
         Initialize the SupportAgent class.
         """
+        self.title = "Support Agent"
 
         # Data files for the company
         self._support = []
@@ -79,3 +82,6 @@ class SupportAgent(ABC):
         """
 
         return "output"
+
+    def _query(self, input_str: str) -> None:
+        pass

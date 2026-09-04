@@ -35,6 +35,9 @@ import sys
 import warnings
 
 # Local Libraries
+from pipelines.main import (
+    run_rag_pipeline,
+)
 from src.constants import (
     APP_NAME,
     ARGS_LIST,
@@ -59,9 +62,14 @@ def run_main_pipeline(args: dict):
 
     data_handler = DataHandler(args)
 
+    # Store helper data into vector database
+    run_rag_pipeline(data_handler.__dict__)
+    sys.exit(0)
+
+    # Process the tickets 🚩
     # run_process_tickets_pipeline(data_handler.__dict__)
 
-    return True
+    return False
 
 
 def parse_args(command_line_str: str) -> dict:
@@ -69,7 +77,7 @@ def parse_args(command_line_str: str) -> dict:
 
 
 if __name__ == "__main__":
-    warnings.filterwarnings("ignore")
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     print(f"\n-----  🖥️ {APP_NAME} 🖥️  -----\n")
     log_chat_transcript("APP NAME", f"{APP_NAME}")
@@ -80,6 +88,7 @@ if __name__ == "__main__":
     print(f"----  🖨️️  START RUN ID: {run_id}  🖨️️  ----")
     log_chat_transcript("Start Program", f"RUN ID: {run_id}")
 
+    global args
     args = parse_args(sys.argv[1:])
 
     # Start Chat Transcript Logging
@@ -98,4 +107,4 @@ if __name__ == "__main__":
         "End Program Run Time", get_time(prog_start_time) + f"RUN ID: {run_id}"
     )
 
-    print(f"\n----- 🖨️️ END RUN ID: {run_id} 🖨️️ -----\n")
+    print(f"\n-----  🖨️️ END RUN ID: {run_id} 🖨️️  -----\n")

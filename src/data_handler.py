@@ -4,6 +4,7 @@
 # +---------------------------------------------------------------------------+
 
 # Python Libraries
+import os
 from pathlib import Path
 
 # Vendor Libraries
@@ -12,12 +13,14 @@ import pandas as pd
 # Local Libraries
 from src.constants import (
     CLAUDE_DIR,
+    DATA_DIR,
     HACKERRANK_DIR,
     OUTPUT_FILE,
     SAMPLE_SUPPORT_TICKETS_FILE,
     SUPPORT_TICKETS_FILE,
     VISA_DIR,
 )
+from src.utils import log_chat_transcript
 
 
 class DataHandler:
@@ -31,17 +34,19 @@ class DataHandler:
         """
         self.output = None
         self.support_tickets = None
-        self.data = {"claude": [], "hackerrank": [], "visa": []}
+        self.md_files = {"claude": [], "hackerrank": [], "visa": []}
 
         self._load_data(args.get("sample", False))
 
+        # Load data files
+        # self._compact_documents(DATA_DIR)
+        self.md_files["claude"] = self._load_md_files(CLAUDE_DIR)
+        self.md_files["hackerrank"] = self._load_md_files(HACKERRANK_DIR)
+        self.md_files["visa"] = self._load_md_files(VISA_DIR)
+        log_chat_transcript("Markdown Files", self.md_files)
+
         if args.get("eda", False):
             self._describe_data()
-
-        # Load data files
-        self.data["claude"] = self._load_md_files(CLAUDE_DIR)
-        self.data["hackerrank"] = self._load_md_files(HACKERRANK_DIR)
-        self.data["visa"] = self._load_md_files(VISA_DIR)
 
     def _load_data(self, use_sample: bool) -> None:
         """
@@ -59,72 +64,72 @@ class DataHandler:
 
         self.support_tickets = pd.read_csv(file_path)
 
-    """
-    def _load_claude_md_files(self):
-        Create a list of dicts with the filename as the key and the string
-        content as the value.
-        322 files for claude.
-        Example
-        data/claude/claude-desktop/desktop-extensions/10949351-getting-started-with-local-mcp-servers-on-claude-desktop.md
-        maps to -> "claude" => [
-            "10949351-getting-started-with-local-mcp-servers-on-claude-desktop": "_____"
-        ]
+    def _compact_md_files(self, dir) -> None:
+        """This version compacts all markdown files together"""
+        mds_dir = Path(dir)
+        md_files = list(mds_dir.rglob("*.md"))
+        self.md_files = [p.read_text(encoding="utf-8") for p in md_files]
+        log_chat_transcript("COMPACT_MARKDOWN_FILES", self.md_files)
 
-        claude_md_files = []
-        root_dir = Path(CLAUDE_DIR)
+    def _load_md_files_dbg(self, dir) -> list:
+        root_dir = Path(dir)
+        print(
+            "root_dir:",
+            root_dir,
+            "exists:",
+            root_dir.exists(),
+            "is_dir:",
+            root_dir.is_dir(),
+        )
 
+        target = dir.replace(DATA_DIR, "")
+        print("target:", repr(target))
+
+        md_files = []
         for file_path in root_dir.rglob("*"):
+            print("found:", file_path, "is_file:", file_path.is_file())
             if file_path.is_file():
-                filename = Path(file_path)
-                key = filename.stem
-                file_content = filename.read_text(encoding="utf-8")
-                file_dict = {key: file_content}
-                claude_md_files.append(file_dict)
+                file_dict = self._parse_md_file(target, file_path)
+                md_files.append(file_dict)
 
-        self.data["claude"] = claude_md_files
-
-    def _load_hackerrank_md_files(self):
-        hackerrank_md_files = []
-        root_dir = Path(HACKERRANK_DIR)
-
-        for file_path in root_dir.rglob("*"):
-            if file_path.is_file():
-                filename = Path(file_path)
-                key = filename.stem
-                file_content = filename.read_text(encoding="utf-8")
-                file_dict = {key: file_content}
-                hackerrank_md_files.append(file_dict)
-
-        self.data["hackerrank"] = hackerrank_md_files
-
-    def _load_visa_md_files(self):
-        visa_md_files = []
-        root_dir = Path(HACKERRANK_DIR)
-        for file_path in root_dir.rglob("*"):
-            if file_path.is_file():
-                filename = Path(file_path)
-                key = filename.stem
-                file_content = filename.read_text(encoding="utf-8")
-                file_dict = {key: file_content}
-                visa_md_files.append(file_dict)
-
-        self.data["visa"] = visa_md_files
-    """
+        print("total files:", len(md_files))
+        return md_files
 
     def _load_md_files(self, dir) -> list:
         root_dir = Path(dir)
-        md_files = []
+        target = dir.replace(DATA_DIR, "")
 
+        md_files = []
         for file_path in root_dir.rglob("*"):
             if file_path.is_file():
-                filename = Path(file_path)
-                file_key = filename.stem
-                file_content = filename.read_text(encoding="utf-8")
-                file_dict = {file_key: file_content}
-
+                file_dict = self._parse_md_file(target, file_path)
                 md_files.append(file_dict)
 
         return md_files
+
+    def _parse_md_file(self, target: str, filepath: Path) -> dict:
+        path = Path(filepath)
+        company_dir = str(os.path.join(DATA_DIR, target))
+
+        # Check if it has a product area
+        product_area = None
+        parent_dir = path.parent
+        file_parent_dir = str(parent_dir).replace(company_dir, "")
+        product_area = file_parent_dir.lstrip("/").rstrip("/") or None
+
+        # Use the text value as content
+        file_content = (
+            path.read_text(encoding="utf-8").strip()
+            if path.is_file()
+            else None
+        )
+
+        return {
+            "product_area": product_area,
+            "filepath": path,
+            "filename": path.name,
+            "content": file_content,
+        }
 
     def _describe_data(self) -> None:
         """
@@ -173,4 +178,5 @@ class DataHandler:
         """
         Saves the data.
         """
+        # 💾
         csv_data.to_csv(OUTPUT_FILE, index=False)

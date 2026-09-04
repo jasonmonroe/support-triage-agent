@@ -11,4 +11,6 @@ pathlib
 pytest
 pytest-mock
 python-dotenv
+python-frontmatter
 sentence-transformers
+typing
