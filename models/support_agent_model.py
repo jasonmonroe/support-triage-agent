@@ -156,10 +156,10 @@ class SupportAgentModel:
 
         return self._format_response(self._filter_response(response))
 
-    def _filter_response(response):
+    def _filter_response(self, response):
         return response
 
-    def _format_response(response):
+    def _format_response(self, response):
         # Output: issue
         return response
 

@@ -33,6 +33,16 @@ RATE_LIMIT_PAUSE_TIMER = 30
 RATE_LIMIT_RETRIES = 3
 PEP8_LINE_LEN = 79
 
+# Model Dimensions & Limits
+EMBEDDING_DIMENSION = 768
+MAX_CONTEXT_TOKENS = 1048576
+MAX_OUTPUT_TOKENS = 8192
+
+# Agent / Chunking Sizes (Recommended for Triage Retrieval/RAG)
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 200
+
+
 # Chroma DB Variables
 CHROMA_COLL_NAME = "support_knowledge_base"
 
@@ -41,7 +51,7 @@ CHROMA_SERVER_NO_TELEMETRY = "true"
 CHROMA_TELEMETRY_DISABLED = "1"
 SEMANTIC_THRESH_LIMIT = 5
 
-
+DB_BATCH_SIZE = 100  # Number of chunks per database write payload
 CHAT_TRANSCRIPT_FILE = os.path.join("", "log.txt")
 DOCUMENT_CHUNK_SIZE = 800
 DOCUMENT_CHUNK_OVERLAP = 100

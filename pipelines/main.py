@@ -42,20 +42,21 @@ def run_rag_pipeline(dataset: dict):
     - Option B: Global Search (when company is None)
     """
 
-    # print(f"dataset={list(dataset.keys())}")
-    # print(dataset)
-    # sys.exit(0)
-
+    # Process markdown files into enriched chunks
     doc_handle = DocumentHandler(dataset.get("md_files"))
     document_chunks = doc_handle.process()
 
-    csv_row_cnt = len(dataset.get("support_tickets"))
+    # Instantiate LLM Agent Model
+    csv_row_cnt = len(dataset.get("support_tickets", []))
     support_agent_model = SupportAgentModel(csv_row_cnt)
 
-    # Store chunks in Chrome DB
-    chroma_data = {"model": None, "company": None}
+    # Store chunks into single target Chroma Collection
+    chroma_data = {"model": support_agent_model, "company": None}
     chroma_model = ChromaModel(chroma_data)
-    sys.exit(0)
+
+    chroma_model.add_vector_documents(document_chunks)
+
+    return chroma_model
 
 
 def run_process_tickets_pipeline(dataset: dict) -> list:

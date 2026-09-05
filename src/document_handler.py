@@ -46,9 +46,9 @@ class DocumentHandler:
         # Convert raw text into Langchain document objects
         documents = []
         for company, company_list in self._md_files.items():
-            for company_dict in company_list:  # list
+            for file_order, company_dict in enumerate(company_list):  # list
                 # Get metadata for document creation
-                metadata = meta.extract(company, company_dict)
+                metadata = meta.extract(company, file_order, company_dict)
                 log_chat_transcript("DOCUMENT_METADATA", metadata)
 
                 # Create Document
@@ -58,10 +58,6 @@ class DocumentHandler:
         # Configure text splitters
         self._chunks = self._create_chunks(documents)
         self._documents = documents
-
-        # random document
-        # rand_doc = documents[?]
-        # doc_id = rand_doc.metadata.get("id")
 
         return self._chunks
 
@@ -78,9 +74,9 @@ class DocumentHandler:
             ("#", "Title"),  # <h1>
             ("##", "Section"),  # <h2>
             ("###", "Subsection"),  # <h3>
-            ("####", "Detail"),  # <h4>
-            ("#####", "Note"),  # <h5>
-            ("######", "Meta"),  # <h6>
+            # ("####", "Detail"),  # <h4>
+            # ("#####", "Note"),  # <h5>
+            # ("######", "Meta"),  # <h6>
         ]
 
         markdown_splitter = MarkdownHeaderTextSplitter(
@@ -119,8 +115,10 @@ class DocumentHandler:
 
     def get_semantic_chunks(self, semantic_chunks):
         """
-        Maps continuous semantic raw chunks into formal wrapped LangChain Documents.
-        Tracks a per-page sequence counter to guarantee unique text_ids when a single
+        Maps continuous semantic raw chunks into formal wrapped LangChain
+        Documents.
+        Tracks a per-page sequence counter to guarantee unique text_ids when a
+        single
         page is split into multiple semantic chunks.
         """
         document_chunks = []
@@ -137,15 +135,32 @@ class DocumentHandler:
     def count_chunks(self) -> int:
         return len(self._chunks)
 
-    def show(self, id) -> None:
+    def show(self, id: str) -> None:
 
         docs = self._documents
 
         # Only show 1 document by it's ID
         if id:
-            print("\n\t 📄 Document:  -----")
-            idx = self.documents.index
-            docs = [self.documents[idx]]
+            # random document
+            # rand_doc = documents[?]
+            # doc_id = rand_doc.metadata.get("id")
+            doc = next(
+                (d for d in docs if d.metadata.get("id") == id),
+                None,
+            )
+
+            if doc is None:
+                message = f"⚠️ No document found by ID:{id}."
+                log_chat_transcript("DOCUMENT_PROFILE", message)
+                return None
+
+            docs = [doc]
+            print("\n\t 📄 Document:  ----")
+
+        if not docs:
+            message = "⚠️ No documents to show."
+            log_chat_transcript("DOCUMENT_PROFILE", message)
+            return None
 
         print(f"\n# --- 🗃️ Showing {len(docs)} Documents 🗃️ --- #")
         for i, doc in enumerate(docs):
@@ -170,7 +185,7 @@ class DocumentHandler:
             AttributeInfo(
                 name="product_area",
                 description="Company domain/category based on knowledge base.",
-                type="integer",
+                type="string",
             ),
             AttributeInfo(
                 name="source",
@@ -178,7 +193,7 @@ class DocumentHandler:
                 type="string",
             ),
             AttributeInfo(
-                name="chuck_idx",
+                name="chunck_idx",
                 description="Chunk idenfifier for the markdown file.",
                 type="integer",
             ),
