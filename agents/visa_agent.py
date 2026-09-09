@@ -7,11 +7,8 @@ from agents.support_agent import SupportAgent
 
 
 class VisaAgent(SupportAgent):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, ticket_df, chroma_model=None):
+        super().__init__(ticket_df, chroma_model)
 
         self.title = "Visa Agent"
-
-    def _query(self):
-        # Override Parent _query()
-        pass
+        self.company = "visa"

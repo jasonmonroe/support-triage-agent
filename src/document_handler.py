@@ -17,6 +17,7 @@ from langchain_text_splitters.markdown import MarkdownHeaderTextSplitter
 from src.constants import (  # Document data structures
     DOCUMENT_CHUNK_OVERLAP,
     DOCUMENT_CHUNK_SIZE,
+    PEP8_LINE_LEN,
 )
 from src.metadata_extractor import MetadataExtractor
 from src.utils import log_chat_transcript
@@ -27,6 +28,7 @@ class DocumentHandler:
         self._md_files = md_files
         self._documents = []
         self._chunks = []
+        self.content = ""
 
     def _create(self, content: str, metadata: dict):
 
@@ -48,11 +50,15 @@ class DocumentHandler:
         for company, company_list in self._md_files.items():
             for file_order, company_dict in enumerate(company_list):  # list
                 # Get metadata for document creation
+                content = company_dict.get("content")
                 metadata = meta.extract(company, file_order, company_dict)
                 log_chat_transcript("DOCUMENT_METADATA", metadata)
 
                 # Create Document
-                document = self._create(company_dict.get("content"), metadata)
+                document = self._create(content, metadata)
+                self.content += (
+                    content.strip() + "\n+" + ("-" * PEP8_LINE_LEN - 2) + "+\n"
+                )
                 documents.append(document)
 
         # Configure text splitters
@@ -60,10 +66,6 @@ class DocumentHandler:
         self._documents = documents
 
         return self._chunks
-
-    def _compact(self):
-        """Compact all markdown content"""
-        pass
 
     def _create_chunks(self, documents: list):
         """
@@ -75,7 +77,7 @@ class DocumentHandler:
             ("##", "Section"),  # <h2>
             ("###", "Subsection"),  # <h3>
             # ("####", "Detail"),  # <h4>
-            # ("#####", "Note"),  # <h5>
+            # ("#####", "Note"),   # <h5>
             # ("######", "Meta"),  # <h6>
         ]
 
@@ -135,22 +137,22 @@ class DocumentHandler:
     def count_chunks(self) -> int:
         return len(self._chunks)
 
-    def show(self, id: str) -> None:
-
+    def show(self, file_order: int) -> None:
         docs = self._documents
 
         # Only show 1 document by it's ID
-        if id:
-            # random document
-            # rand_doc = documents[?]
-            # doc_id = rand_doc.metadata.get("id")
+        if file_order:
             doc = next(
-                (d for d in docs if d.metadata.get("id") == id),
+                (
+                    d
+                    for d in docs
+                    if d.metadata.get("file_order") == file_order
+                ),
                 None,
             )
 
             if doc is None:
-                message = f"⚠️ No document found by ID:{id}."
+                message = f"⚠️ No document found by file order:{file_order}."
                 log_chat_transcript("DOCUMENT_PROFILE", message)
                 return None
 

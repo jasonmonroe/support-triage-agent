@@ -4,13 +4,17 @@ from __future__ import annotations
 # +---------------------------------------------------------------------------+
 # |                            SUPPORT AGENT MODEL                            |
 # +---------------------------------------------------------------------------+
+#
 # Python Libraries
+import json
 import time
 
 # Vendor Libraries
 from openai import InternalServerError, OpenAI, RateLimitError
 
+# Local Libraries
 from constants import (
+    LLAMA_UNSAFE_CODES,
     MAX_TOKENS,
     MODEL_API_KEY,
     MODEL_API_URL,
@@ -19,9 +23,7 @@ from constants import (
     RATE_LIMIT_RETRIES,
     SYSTEM_INSTR_PROMPT,
 )
-from utils import log_chat_transcript
-
-# Local Libraries
+from utils import log_chat_transcript, show_banner
 
 
 class SupportAgentModel:
@@ -29,7 +31,7 @@ class SupportAgentModel:
     A class to represent a language model.
     """
 
-    def __init__(self, row_cnt: int):
+    def __init__(self, row_cnt: int = 0):
         if (
             MODEL_API_URL is None
             or MODEL_NAME is None
@@ -45,8 +47,8 @@ class SupportAgentModel:
             f"📄️DATA ROWS: {row_cnt}",
         ]
 
-        self.name = "Support Agent Model"
-        # show_banner(self.name, subtitles)
+        self.title = "Support Agent Model"
+        show_banner(self.title, subtitles)
 
         self._client = self._load_model()
 
@@ -142,26 +144,97 @@ class SupportAgentModel:
 
         return delay_time
 
-    def generate_response(self, prompt: str) -> str:
-        """
-        Generates a response from the model based on the given prompt.
-
-        Args:
-            prompt (str): The input prompt for the model.
-        """
-
-        response = self._client.models.generate_content(
-            model=MODEL_NAME, contents=prompt
-        )
-
-        return self._format_response(self._filter_response(response))
-
     def _filter_response(self, response):
-        return response
+
+        content_str = ""
+        try:
+            if hasattr(response, "choices") and response.choices:
+                choice = response.choices[0]
+                content_str = choice.message.content or ""
+            elif hasattr(response, "content"):
+                content_str = response.content or ""
+            elif isinstance(response, str):
+                content_str = response
+            else:
+                content_str = str(response)
+
+            if not content_str or not content_str.strip():
+                return {}
+
+            cleaned_str = content_str.strip()
+
+            # self._apply_guard(response)
+            print(f"cleaned_str={cleaned_str}")
+
+            return json.loads(cleaned_str.strip())
+
+        except (AttributeError, IndexError, json.JSONDecodeError) as e:
+            print(f"🚨 Error occurred while parsing response: {e} 🚨")
+            print(f" `repr(content_str)` was: {repr(content_str)}")
+            return {}
+
+        except Exception as e:
+            log_chat_transcript("FILTER_RESPONSE_ERROR", e)
+            return {}
 
     def _format_response(self, response):
         # Output: issue
+        if not response:
+            return {}
+
         return response
 
     def _ground_truth(self):
         return ""
+
+    def filter_input_with_llama_guard(self, user_input_str: str) -> str:
+        """
+        Function to filter user input with Llama Guard
+
+        Filters user input using Llama Guard to ensure it is safe.
+        Whitelist "UNSAFE" codes: S6, S7, S8, S13 so that you can handle the customer query.
+
+        Parameters:
+        - user_input: The input provided by the user.
+        - model: The Llama Guard model to be used for filtering (default is "meta-llama/llama-guard-4-12b").
+
+        Returns:
+        - The filtered and safe input.
+        """
+        # @TODO - do I need LLAMA MODEL to filter or can google do it?
+        try:
+            # Create a request to Llama Guard to filter the user input
+            llama_response = self.client.chat.completions.create(
+                messages=[{"role": "user", "content": user_input_str.strip()}],
+                model=LLAMA_MODEL,
+            )
+
+            # Return the filtered input
+            result = llama_response.choices[0].message.content.strip()
+
+            if self._log:
+                print("\nDEBUG --- LLAMA RESPONSE --- ")
+                print(f"{llama_response}")
+                print("\n# --- 🖊️  Open Guard result 🖊️ --- #")
+                print(result)
+                print("# --- 🖊️  Close Guard result 🖊️ --- #\n")
+                print("DEBUG --- LLAMA RESPONSE ---\n")
+
+            return self._apply_guard(result)
+
+        except Exception as e:
+            print(f"❌ Error with Llama Guard: {e}")
+            return ""
+
+    def _apply_guard(self, result: str) -> str:
+        # Added type hint for clarity
+        if "unsafe" in result:
+            if any(
+                code.strip() in LLAMA_UNSAFE_CODES
+                for code in result.replace("unsafe ", "").strip().split(",")
+            ):
+                return "BYPASS_SAFE"
+            else:
+                return "UNSAFE"
+        else:
+            return "SAFE"

@@ -178,5 +178,6 @@ class DataHandler:
         """
         Saves the data.
         """
-        # 💾
+
+        print(f"--- 💾 Saving data to {OUTPUT_FILE}.")
         csv_data.to_csv(OUTPUT_FILE, index=False)

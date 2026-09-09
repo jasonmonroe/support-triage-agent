@@ -12,8 +12,6 @@ import chromadb
 
 # Vector Libraries
 from langchain_chroma import Chroma
-from langchain_classic.retrievers.self_query.base import SelfQueryRetriever
-from langchain_community.query_constructors.chroma import ChromaTranslator
 from langchain_core.documents import Document
 
 # Local Libraries
@@ -26,7 +24,6 @@ from constants import (
     DOCUMENT_DIR_PERM,
     MODEL_EMBEDDING,
 )
-from document_handler import DocumentHandler
 
 
 class ChromaModel:
@@ -35,7 +32,7 @@ class ChromaModel:
     similarity-based and metadata-structured Self-Query retrieval mechanisms.
     """
 
-    def __init__(self, dataset: dict):
+    def __init__(self):
         os.environ["CHROMA_SERVER_NO_TELEMETRY"] = CHROMA_SERVER_NO_TELEMETRY
 
         self._client = chromadb.PersistentClient(
@@ -43,13 +40,9 @@ class ChromaModel:
         )
         self.collection_name = CHROMA_COLL_NAME
         self.embedding_model = MODEL_EMBEDDING
-        self.model = dataset.get("model")
 
-        # Initialize the primary vector storage collection
+        self.retriever = None
         self.vector_storage = self._get_vector_storage()
-
-        # Initialize default vector retriever
-        self.retriever = self.get_retriever(dataset.get("company"))
 
     def get_retriever(self, company: str | None):
         """
@@ -76,26 +69,6 @@ class ChromaModel:
             client=self._client,
             embedding_function=self.embedding_model,
             collection_name=self.collection_name,
-        )
-
-    def get_structured_retriever(self, content_description: str):
-        """
-        Dynamically initializes a SelfQueryRetriever when structured LLM filtering is required
-        (e.g., global search when company is missing or ambiguous).
-        """
-        if self.model is None:
-            raise ValueError("🚨 A model is needed for global search.")
-
-        metadata_fields = DocumentHandler.metadata_field_info()
-
-        return SelfQueryRetriever.from_llm(
-            llm=self.model,
-            vectorstore=self.vector_storage,
-            document_contents=content_description,
-            metadata_field_info=metadata_fields,
-            structured_query_translator=ChromaTranslator(),
-            verbose=True,
-            use_original_query=True,
         )
 
     def add_vector_documents(
@@ -125,10 +98,10 @@ class ChromaModel:
         except Exception:
             return 0
 
-    def query(self, text: str, company: str | None) -> List[Document]:
-        """Queries the vector store using company-specific filtering or standard similarity search."""
-        self.retriever = self.get_retriever(company)
-        return self.retriever.invoke(text)
+    def query(self, company: str | None, text: str) -> List[Document]:
+        """Queries ChromaDB using company-filtered or global search."""
+        retriever = self.get_retriever(company)
+        return retriever.invoke(text)
 
     def delete(self) -> None:
         """Purges the target database directory (db/) to reset ChromaDB states."""

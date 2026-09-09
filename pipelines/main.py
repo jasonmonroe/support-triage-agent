@@ -2,10 +2,9 @@
 # +---------------------------------------------------------------------------+
 # |                               PIPELINES                                   |
 # +---------------------------------------------------------------------------+
-
 #  Python Libraries
 import inspect
-import sys
+import random
 import time
 
 # Local Libraries
@@ -20,6 +19,7 @@ from src.utils import (
     show_timer,
     start_timer,
 )
+from ticket_analyzer import TicketAnalyzer
 
 
 def run_rag_pipeline(dataset: dict):
@@ -42,58 +42,77 @@ def run_rag_pipeline(dataset: dict):
     - Option B: Global Search (when company is None)
     """
 
-    # Process markdown files into enriched chunks
-    doc_handle = DocumentHandler(dataset.get("md_files"))
-    document_chunks = doc_handle.process()
+    data_refresh = dataset.get("refresh")
+    if data_refresh:
+        log_chat_transcript("DATA_REFRESH_FLAG", True)
 
     # Instantiate LLM Agent Model
     csv_row_cnt = len(dataset.get("support_tickets", []))
-    support_agent_model = SupportAgentModel(csv_row_cnt)
 
-    # Store chunks into single target Chroma Collection
-    chroma_data = {"model": support_agent_model, "company": None}
-    chroma_model = ChromaModel(chroma_data)
+    chroma_model = ChromaModel()
 
-    chroma_model.add_vector_documents(document_chunks)
+    semantic_count = chroma_model.get_document_count()
+    log_chat_transcript("SEMANTIC_COUNT", semantic_count)
+
+    if semantic_count > 0 and not data_refresh:
+        log_chat_transcript(
+            "SEMANTIC_COUNT",
+            f"✅ Semantic collection already has {semantic_count} documents — skipping ingestion.",
+        )
+    else:
+        # Process markdown files into enriched chunks
+        doc_handle = DocumentHandler(dataset.get("md_files"))
+
+        if data_refresh:
+            log_chat_transcript(
+                "DATA_REFRESH", "Wiping database and ingesting..."
+            )
+            chroma_model.delete()
+
+        # Process document chunks and store chunks into single target Chroma Collection.
+        document_chunks = doc_handle.process()
+        chroma_model.add_vector_documents(document_chunks)
+
+    # Show documents
+    rand_file_order = random.randint(0, semantic_count)
+    doc_handle.show(rand_file_order)
 
     return chroma_model
 
 
-def run_process_tickets_pipeline(dataset: dict) -> list:
-    sys.exit(0)
+def run_process_tickets_pipeline(dataset: dict, chroma_model) -> list:
     print(f"Runnning {inspect.currentframe().f_code.co_name}")
 
     tickets_df = dataset.get("support_tickets")
-    row_count = tickets_df.shape[0]
+    row_cnt = tickets_df.shape[0]
+    support_agent_model = SupportAgentModel({"row_cnt": row_cnt})
 
-    # Load Prompt Builder
-    # prompt_builder = PromptBuilder()
-    # support_agent_model = SupportAgentModel(row_count)
+    analyzer = TicketAnalyzer(
+        {"model": support_agent_model, "choma_model": chroma_model}
+    )
 
     output_rows = []
     for row in tickets_df.itertuples():
         print(f"\nrow.Index = {row.Index}")
         if row.Index == 0:
             # if row._______ == "________":
-
             # print(f"row={row.Issue}")
-
             log_chat_transcript(
                 "PROMPT_ASSEMBLY", f"Assembling prompt for index: {row.Index}"
             )
 
             start_time = start_timer()
+            prompt = analyzer.build_prompt_by_company(row)
 
-            prompt = None  # assembler.build_prompt_by_user(row)
             log_chat_transcript(
                 "PROMPT_BUILT", prompt
             )  # Logs the exact XML/Text sent to the LLM
 
-            response = None
-
-            # response = chat_model.get_response(
-            #    prompt, row.Index
-            # )  # response is a list
+            """
+            Returns output.  Use three inputs and 5 outputs (status, product_area, response, justificiation, request_ type)
+            to create the output.csv row
+            """
+            response = analyzer.support_agent_model.get_response(prompt)
             log_chat_transcript("LLM_RESPONSE", response)
 
             if not response or hasattr(response, "error"):
@@ -109,9 +128,9 @@ def run_process_tickets_pipeline(dataset: dict) -> list:
             output_rows.append(response)
 
             log_chat_transcript(
-                "PROGRESS_BAR", get_progress_bar(row.Index, row_count)
+                "PROGRESS_BAR", get_progress_bar(row.Index, row_cnt)
             )
-            print(get_progress_bar(row.Index, row_count))
+            print(get_progress_bar(row.Index, row_cnt))
 
     return output_rows
 

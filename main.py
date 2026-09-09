@@ -35,9 +35,7 @@ import sys
 import warnings
 
 # Local Libraries
-from pipelines.main import (
-    run_rag_pipeline,
-)
+from pipelines.main import run_process_tickets_pipeline, run_rag_pipeline
 from src.constants import (
     APP_NAME,
     ARGS_LIST,
@@ -63,11 +61,11 @@ def run_main_pipeline(args: dict):
     data_handler = DataHandler(args)
 
     # Store helper data into vector database
-    run_rag_pipeline(data_handler.__dict__)
+    chroma_model = run_rag_pipeline(data_handler.__dict__)
     sys.exit(0)
 
     # Process the tickets 🚩
-    # run_process_tickets_pipeline(data_handler.__dict__)
+    run_process_tickets_pipeline(data_handler.__dict__, chroma_model)
 
     return False
 
