@@ -27,6 +27,7 @@ class MetadataExtractor:
         self.breadcrumbs = None
         self.company = None
         self.created_at = None  # File timestamp
+        self.doc_type = None
         self.file_order = None
         self.last_updated_exact = None
         self.last_updated_iso = None  # if not found use last_updated_exact
@@ -128,14 +129,23 @@ class MetadataExtractor:
         self.breadcrumbs = content.get("breadcrumbs")
         self.checksum = self._get_checksum()
         self.company = company
+        self.doc_type = "semantic_chunk"
         self.file_order = file_order  # orderable of file in directory
         self.last_updated_exact = (
-            format_iso_date((content.get("last_updated_exact") or "").strip())
+            str(
+                format_iso_date(
+                    (content.get("last_updated_exact") or "").strip()
+                ).isoformat()
+            )
             if content.get("last_updated_exact")
             else None
         )
         self.last_updated_iso = (
-            format_iso_date((content.get("last_updated_iso") or "").strip())
+            str(
+                format_iso_date(
+                    (content.get("last_updated_iso") or "").strip()
+                ).isoformat()
+            )
             if content.get("last_updated_iso")
             else None
         )
@@ -145,7 +155,7 @@ class MetadataExtractor:
         self.source_url = content.get("source_url")
         self.title = content.get("title")
         self.title_slug = content.get("title_slug")
-        self.created_at = self._get_created_at(self.source)
-        self.utc_datetime = datetime.now(timezone.utc).isoformat()
+        self.created_at = str(self._get_created_at(self.source))
+        self.utc_datetime = str(datetime.now(timezone.utc).isoformat())
 
         return self._export()

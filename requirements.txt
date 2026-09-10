@@ -1,7 +1,10 @@
+# requirements.txt
 chromadb
 langchain
 langchain-chroma
 langchain-community
+langchain-google-genai
+langchain-huggingface
 langchain-openai
 langchain-text-splitters
 numpy

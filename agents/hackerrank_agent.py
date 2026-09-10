@@ -4,52 +4,72 @@
 # +---------------------------------------------------------------------------+
 
 
-# Python Libraries
-import json
-
 # Local Libraries
 from agents.support_agent import SupportAgent
 
 
 class HackerrankAgent(SupportAgent):
-    def __init__(self, ticket_df, chroma_model=None):
-        super().__init__(ticket_df, chroma_model)
+    def __init__(
+        self, row_index, ticket_df, chroma_model, support_agent_model
+    ):
+        super().__init__(
+            row_index, ticket_df, chroma_model, support_agent_model
+        )
 
         self.title = "HackerRank Agent"
-        self.company = "hackerrank"
+        self.company = "Hackerrank"
 
-    def ground(self, documents: list, ticket_response: str | None):
+    def ground(self, documents: list):
+        document_content = ""
+
+        for document in documents:
+            document_content += document.page_content + "\n-----------\n"
+
         prompt = f"""
-        Analyze this prompt to ensure that the context is about Visa Incorporated a financial company that processes digital payments and to prevent
-        hullicinations from the model from fabricating non-existent information.  Your response must be analyzed by the retrieved documents.
-        Then compared to the ticket reponse to see if it's accurate.  If so use the ticket response 
-        or update it with the appropriate answer as a response. 
-        
-        ## Documents
-        {documents}
+        Evaluate the accuracy of the proposed response against the provided internal documentation to prevent model hallucinations and ensure factual grounding.
+        The context should be geared toward {self.company}.  A coding development website to test software engineering concepts.
 
-        ## Ticket Response
-        {ticket_response}
-        Also if the context is accurate assess the risk level for the issue.  Assign it as `low`, `medium`,  `high`, `critical`.
+        ## Context Documents
+        {document_content.strip()}
 
-        Output JSON with keys: risk_level: string, response: string
-         
+        ## Draft Response to Evaluate
+        {self.response.strip()}
+
+        ## Evaluation Tasks:
+        1. Verify if the Draft Response is fully supported by the Context Documents.
+        2. If the Draft Response is accurate and complete, retain it.
+        3. If the Draft Response contains factual errors, missing details, or hallucinations, rewrite it so it is strictly grounded in the Context Documents.
+        4. Assess the risk level of the support issue based on its severity, security implications, or potential business impact.
+
+        Assign one of the following risk levels: `low`, `medium`, `high`, `critical`.
+
+        ### Required Output Format:
+        Return ONLY a valid JSON object wrapped in a markdown code block (```json ... ```):
+        {{
+        "risk_level": "<low | medium | high | critical>",
+        "response": "<final corrected or original user-facing response>"
+        }}
         """.strip()
 
-        response = self._model.get_response(prompt)
+        grounded_response = self._model.get_response(prompt, self.row_index)
+        print(f"ground(): response={grounded_response}")
 
-        grounded_response = json.load(response)
+        if not grounded_response or hasattr(grounded_response, "error"):
+            return
+
         # Compare against ticket response
-        self._risk_level = grounded_response["risk_level"]
-        self.response = grounded_response["response"]
+        self._risk_level = grounded_response["risk_level"] or None
+        self.response = grounded_response["response"] or None
 
-    def _assess_risk(self):
+    # @TODO - defunct
+    def __assess_risk(self, request: str) -> str:
         """
         Visa is about finance, financial documents
         """
 
         grounding_prompt = """
-       
+
         """
 
         self._risk_level = None
+        return self._risk_level

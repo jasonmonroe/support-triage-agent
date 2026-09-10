@@ -4,6 +4,8 @@
 # +---------------------------------------------------------------------------+
 
 # Vendor Libraries
+from typing import Union
+
 import pandas as pd
 
 # Local Libraries
@@ -11,61 +13,25 @@ from agents.claude_agent import ClaudeAgent
 from agents.hackerrank_agent import HackerrankAgent
 from agents.support_agent import SupportAgent
 from agents.visa_agent import VisaAgent
-from prompt_builder import PromptBuilder
+from src.prompt_builder import PromptBuilder
+from src.utils import log_chat_transcript
 
 
 class TicketAnalyzer:
     def __init__(self, dataset: dict) -> None:
-        # self.support_agent = SupportAgent()
-        # self.cluade_agent = ClaudeAgent()
-        # self.hackerrank_agent = HackerrankAgent()
-        # self.visa_agent = VisaAgent()
-        # self.chroma_model = dataset.get("chroma_model", None)
         self.chroma_model = dataset.get("chroma_model")
         self.support_agent_model = dataset.get("model")
         self.agent = None
 
-    def build_prompt_by_company(self, ticket_df: pd.DataFrame) -> str:
+    def build_prompt_by_company(
+        self,
+        row_index: int,
+        ticket_df: pd.DataFrame,
+    ) -> str:
 
         # Get company
-        self.agent = self._get_agent(ticket_df)
-
-        """
-        ┌─────────────────────────────────────────────────────────┐
-        │              Input: CSV File of Tickets                 │
-        └───────────────────────────┬─────────────────────────────┘
-                                    │
-                                    ▼
-        ┌─────────────────────────────────────────────────────────┐
-        │ 1. READ & PARSE TICKET (Subject, Issue, Company)        │
-        └───────────────────────────┬─────────────────────────────┘
-                                    │
-                                    ▼
-        ┌─────────────────────────────────────────────────────────┐
-        │ 2. CLASSIFY & ASSESS (Request Type, Product Area, Risk) │
-        └───────────────────────────┬─────────────────────────────┘
-                                    │
-                                    ▼
-        ┌─────────────────────────────────────────────────────────┐
-        │ 3. RETRIEVE KNOWLEDGE (Search Markdown Documentation)   │
-        └───────────────────────────┬─────────────────────────────┘
-                                    │
-                                    ▼
-        ┌─────────────────────────────────────────────────────────┐
-        │ 4. MAKE DECISION (Safe to Reply vs. Must Escalate)       │
-        └───────────────────────────┬─────────────────────────────┘
-                                    │
-                                    ▼
-        ┌─────────────────────────────────────────────────────────┐
-        │ 5. GENERATE RESPONSE & JUSTIFICATION                    │
-        └───────────────────────────┬─────────────────────────────┘
-                                    │
-                                    ▼
-        ┌─────────────────────────────────────────────────────────┐
-        │         Output: CSV File Saved to disk (output.csv)     │
-        └─────────────────────────────────────────────────────────┘
-
-        """
+        self.agent = self._get_agent(row_index, ticket_df)
+        log_chat_transcript("AGENT_LOADED", self.agent.title)
 
         # Prioritieze the input data:
         # Company, Issue, Subject
@@ -87,34 +53,47 @@ class TicketAnalyzer:
         # generate a safe, grounded response
 
         # get prompt
-
-        exported_dataset = self.agent.export()
+        columns = SupportAgent.normalized_columns(ticket_df)
+        exported_dataset = self.agent.export(columns)
+        print(f"exported_dataset = {exported_dataset}")
 
         # Load Prompt Builder to get the prompt
-        dataset = exported_dataset | {"document_chunks": documents}
+        dataset = exported_dataset | {
+            "document_chunks": documents,
+            "row_index": row_index,
+        }
         builder = PromptBuilder(dataset)
 
         return builder.prompt.strip()
 
-    def _get_agent(self, ticket_df: pd.DataFrame):
-        # company = ticket_df["company"].lower()
+    def _get_agent(
+        self, row_index: int, ticket_df: pd.DataFrame
+    ) -> Union[SupportAgent, ClaudeAgent, HackerrankAgent, VisaAgent]:
+        agent_params = {
+            "row_index": row_index,
+            "ticket_df": ticket_df,
+            "chroma_model": self.chroma_model,
+            "support_agent_model": self.support_agent_model,
+        }
 
-        agent = SupportAgent(ticket_df, self.chroma_model)
-        company = agent.company
+        # company = SupportAgent.resolve_company(ticket_df)
+
+        company = ticket_df.Company.lower()
+
         if not company:
-            # company = SupportAgent.find_company(ticket_df)
-            return SupportAgent(ticket_df, self.chroma_model)
+            return SupportAgent(**agent_params)
 
-        if company == "claude":
-            return ClaudeAgent(ticket_df, self.chroma_model)
+        # Registry mapping company names to concrete subclass implementations
+        agent_mapping = {
+            "claude": ClaudeAgent,
+            "hackerrank": HackerrankAgent,
+            "visa": VisaAgent,
+        }
 
-        elif company == "hackerrank":
-            return HackerrankAgent(ticket_df, self.chroma_model)
+        if company not in agent_mapping:
+            raise ValueError(f"Unsupported company: '{company}'")
 
-        elif company == "visa":
-            return VisaAgent(ticket_df, self.chroma_model)
-        else:
-            raise ValueError("Company error!")
+        self.support_agent_model.title = company.title() + " Agent Model"
+        agent_params["support_agent_model"] = self.support_agent_model
 
-    def _merge(self) -> dict:
-        return {}
+        return agent_mapping[company](**agent_params)

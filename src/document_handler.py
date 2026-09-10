@@ -17,7 +17,6 @@ from langchain_text_splitters.markdown import MarkdownHeaderTextSplitter
 from src.constants import (  # Document data structures
     DOCUMENT_CHUNK_OVERLAP,
     DOCUMENT_CHUNK_SIZE,
-    PEP8_LINE_LEN,
 )
 from src.metadata_extractor import MetadataExtractor
 from src.utils import log_chat_transcript
@@ -28,7 +27,6 @@ class DocumentHandler:
         self._md_files = md_files
         self._documents = []
         self._chunks = []
-        self.content = ""
 
     def _create(self, content: str, metadata: dict):
 
@@ -56,11 +54,9 @@ class DocumentHandler:
 
                 # Create Document
                 document = self._create(content, metadata)
-                self.content += (
-                    content.strip() + "\n+" + ("-" * PEP8_LINE_LEN - 2) + "+\n"
-                )
                 documents.append(document)
 
+        # print(f"file_order={file_order}")
         # Configure text splitters
         self._chunks = self._create_chunks(documents)
         self._documents = documents
@@ -109,33 +105,11 @@ class DocumentHandler:
 
         return chunks
 
-    def embed(self):
-        pass
-
-    def create_collection(self):
-        pass
-
-    def get_semantic_chunks(self, semantic_chunks):
-        """
-        Maps continuous semantic raw chunks into formal wrapped LangChain
-        Documents.
-        Tracks a per-page sequence counter to guarantee unique text_ids when a
-        single
-        page is split into multiple semantic chunks.
-        """
-        document_chunks = []
-        documents = []
-
-        for doc in semantic_chunks:
-            metadata = doc.metadata.copy()
-            metadata["chunk_seq"] = None
-
-            documents.append(self.create("", metadata))
-
-        return document_chunks
-
     def count_chunks(self) -> int:
         return len(self._chunks)
+
+    def count_documents(self) -> int:
+        return len(self._documents)
 
     def show(self, file_order: int) -> None:
         docs = self._documents
@@ -151,8 +125,8 @@ class DocumentHandler:
                 None,
             )
 
-            if doc is None:
-                message = f"⚠️ No document found by file order:{file_order}."
+            if doc is None or file_order == 0:
+                message = f"⚠️  No document found by file order:{file_order}."
                 log_chat_transcript("DOCUMENT_PROFILE", message)
                 return None
 
@@ -166,15 +140,24 @@ class DocumentHandler:
 
         print(f"\n# --- 🗃️ Showing {len(docs)} Documents 🗃️ --- #")
         for i, doc in enumerate(docs):
-            print(f"\n\t 📄 Document: {i + 1} -----")
+            print(f"\n\t---- 📄 Document: {i + 1} ----")
+
             print("\t\tSource:", doc.metadata.get("source", "Unknown"))
             print(
-                "\t\tFilename:",
-                doc.metadata.get("filename", "Unknown filename"),
+                "\t\tTitle",
+                doc.metadata.get("title", "Unknown Title"),
             )
-            print("\t\tPage:", doc.metadata.get("page", "Unknown"))
-            print("\t\tPage Content:", doc.page_content)
-            print(f"\t+-- Document: {i + 1} ----+")
+            print("\t\tCompany:", doc.metadata.get("company", "Unknown"))
+            print(
+                "\t\tProduct Area:",
+                doc.metadata.get("product_area", "Unknown"),
+            )
+
+            print("\t\tFile Order:", doc.metadata.get("file_order", "Unknown"))
+            print("\t\tPage Content:", doc.page_content[:1024])
+            print(f"\t+--- Document: {i + 1} ---+")
+
+        print("\n")
 
     @staticmethod
     def metadata_field_info() -> list:
@@ -196,7 +179,7 @@ class DocumentHandler:
             ),
             AttributeInfo(
                 name="chunck_idx",
-                description="Chunk idenfifier for the markdown file.",
+                description="Document chunk idenfifier for the markdown file.",
                 type="integer",
             ),
         ]

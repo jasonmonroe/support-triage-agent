@@ -39,11 +39,12 @@ class DataHandler:
         self._load_data(args.get("sample", False))
 
         # Load data files
-        # self._compact_documents(DATA_DIR)
-        self.md_files["claude"] = self._load_md_files(CLAUDE_DIR)
-        self.md_files["hackerrank"] = self._load_md_files(HACKERRANK_DIR)
-        self.md_files["visa"] = self._load_md_files(VISA_DIR)
-        log_chat_transcript("Markdown Files", self.md_files)
+        if args.get("rag"):
+            # self._compact_documents(DATA_DIR)
+            self.md_files["claude"] = self._load_md_files(CLAUDE_DIR)
+            self.md_files["hackerrank"] = self._load_md_files(HACKERRANK_DIR)
+            self.md_files["visa"] = self._load_md_files(VISA_DIR)
+            log_chat_transcript("MARKDOWN_FILES", self.md_files)
 
         if args.get("eda", False):
             self._describe_data()
@@ -63,6 +64,13 @@ class DataHandler:
         )
 
         self.support_tickets = pd.read_csv(file_path)
+        # itertuples() builds namedtuples, which require valid Python
+        # identifiers — a raw "Product Area" column gets silently renamed
+        # to a positional "_5" instead. Normalize spaces to underscores
+        # up front so every column survives itertuples() with its real name.
+        self.support_tickets.columns = self.support_tickets.columns.str.replace(
+            " ", "_"
+        )
 
     def _compact_md_files(self, dir) -> None:
         """This version compacts all markdown files together"""

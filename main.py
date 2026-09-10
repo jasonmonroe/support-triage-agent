@@ -27,18 +27,21 @@ __version__ = "1.0.0"
 
 
 # Python Libraries
-from dotenv import load_dotenv
-
-load_dotenv("../.env")
-
+# from dotenv import load_dotenv
+# load_dotenv(dotenv_path="../.env", override=True)
+import inspect
+import os
 import sys
 import warnings
+
+from models.chroma_model import ChromaModel
 
 # Local Libraries
 from pipelines.main import run_process_tickets_pipeline, run_rag_pipeline
 from src.constants import (
     APP_NAME,
     ARGS_LIST,
+    CHAT_TRANSCRIPT_FILE,
     OUTPUT_FILE,
     SAMPLE_SUPPORT_TICKETS_FILE,
 )
@@ -47,13 +50,16 @@ from src.utils import (
     gen_run_id,
     get_time,
     log_chat_transcript,
+    show_banner,
     show_timer,
     start_timer,
 )
 
 
 def run_main_pipeline(args: dict):
-    print("Running main pipeline...")
+    print(
+        f"🏃 Runnning {inspect.currentframe().f_code.co_name.title().replace('_', ' ')}"
+    )
 
     if args.get("sample"):
         print(f"\nLoading {SAMPLE_SUPPORT_TICKETS_FILE}")
@@ -61,11 +67,17 @@ def run_main_pipeline(args: dict):
     data_handler = DataHandler(args)
 
     # Store helper data into vector database
-    chroma_model = run_rag_pipeline(data_handler.__dict__)
-    sys.exit(0)
+    chroma_model = ChromaModel()
+    if args.get("rag"):
+        start_time = start_timer()
+        chroma_model = run_rag_pipeline(args, data_handler.__dict__)
+        show_timer(start_time)
+    # sys.exit(0)
 
     # Process the tickets 🚩
-    run_process_tickets_pipeline(data_handler.__dict__, chroma_model)
+    output_rows = run_process_tickets_pipeline(
+        args, data_handler.__dict__, chroma_model
+    )
 
     return False
 
@@ -76,9 +88,8 @@ def parse_args(command_line_str: str) -> dict:
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-    print(f"\n-----  🖥️ {APP_NAME} 🖥️  -----\n")
-    log_chat_transcript("APP NAME", f"{APP_NAME}")
+    os.remove(CHAT_TRANSCRIPT_FILE)
+    log_chat_transcript("APP NAME", f"\n-----  🖥️ {APP_NAME} 🖥️  -----\n")
 
     prog_start_time = start_timer()
     run_id = gen_run_id()
@@ -88,6 +99,8 @@ if __name__ == "__main__":
 
     global args
     args = parse_args(sys.argv[1:])
+
+    show_banner(APP_NAME)
 
     # Start Chat Transcript Logging
     log_chat_transcript(

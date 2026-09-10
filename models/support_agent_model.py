@@ -13,7 +13,8 @@ import time
 from openai import InternalServerError, OpenAI, RateLimitError
 
 # Local Libraries
-from constants import (
+from src.constants import (
+    LLAMA_MODEL,
     LLAMA_UNSAFE_CODES,
     MAX_TOKENS,
     MODEL_API_KEY,
@@ -23,7 +24,7 @@ from constants import (
     RATE_LIMIT_RETRIES,
     SYSTEM_INSTR_PROMPT,
 )
-from utils import log_chat_transcript, show_banner
+from src.utils import log_chat_transcript, show_banner
 
 
 class SupportAgentModel:
@@ -74,7 +75,12 @@ class SupportAgentModel:
                 response = self._client.chat.completions.create(
                     model=MODEL_NAME,
                     messages=[
-                        {"role": "system", "content": SYSTEM_INSTR_PROMPT},
+                        {
+                            "role": "system",
+                            "content": SYSTEM_INSTR_PROMPT.format(
+                                agent_title=self.title
+                            ),
+                        },
                         {"role": "user", "content": prompt},
                     ],
                     temperature=0.0,
@@ -88,7 +94,7 @@ class SupportAgentModel:
 
             except InternalServerError as e:
                 print(
-                    f"🚨 Idx: {row_index} | {self.name} Server error encountered (503/5xx): {e} 🚨"
+                    f"🚨 Idx: {row_index} | {self.title} Server error encountered (503/5xx): {e} 🚨"
                 )
                 return {}  # Return safe empty list so downstream code doesn't crash on None
 
@@ -99,7 +105,7 @@ class SupportAgentModel:
 
                 if attempt >= RATE_LIMIT_RETRIES - 1:
                     print(
-                        f"\n🚨 Idx: {row_index} | {self.name} request has exceeded the maximum amount of retries! Returning {{error: True}}. 🚨"
+                        f"\n🚨 Idx: {row_index} | {self.title} request has exceeded the maximum amount of retries! Returning {{error: True}}. 🚨"
                     )
                     return {"error": True}
 
@@ -117,7 +123,7 @@ class SupportAgentModel:
 
             except Exception as e:
                 print(
-                    f"\n🚨 Idx: {row_index} | {self.name} Unexpected API error occurred: {e} 🚨"
+                    f"\n🚨 Idx: {row_index} | {self.title} Unexpected API error occurred: {e} 🚨"
                 )
                 return {}
 
@@ -164,7 +170,7 @@ class SupportAgentModel:
             cleaned_str = content_str.strip()
 
             # self._apply_guard(response)
-            print(f"cleaned_str={cleaned_str}")
+            # print(f"cleaned_str={cleaned_str}")
 
             return json.loads(cleaned_str.strip())
 

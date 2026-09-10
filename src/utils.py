@@ -180,7 +180,7 @@ def log_chat_transcript(stage: str, content: str) -> None:
     )
 
     # if args.get("log"):
-    # print(log_entry)
+    print(log_entry[:1024])
 
     # Ensure the file appends cleanly
     with open(CHAT_TRANSCRIPT_FILE, "a", encoding="utf-8") as log_file:
