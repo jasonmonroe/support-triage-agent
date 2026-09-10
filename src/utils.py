@@ -4,14 +4,19 @@
 # +---------------------------------------------------------------------------+
 
 # Python Libraries
+import json
 import textwrap
 import time
 import uuid
 from datetime import datetime, timezone
+from enum import Enum
+
+import pandas as pd
 
 # Local Libraries
 from src.constants import (
     CHAT_TRANSCRIPT_FILE,
+    COMPANY_KEYWORDS,
     MSEC,
     PEP8_LINE_LEN,
     SECS_IN_MIN,
@@ -233,3 +238,41 @@ def format_iso_date(date_str: str) -> datetime:
         dt = dt.replace(tzinfo=timezone.utc)
 
     return dt
+
+
+def row_to_dict(series_row: pd.Series) -> dict:
+    return (
+        series_row._asdict()
+        if hasattr(series_row, "_asdict")
+        else dict(series_row)
+    )
+
+
+def prettify_cols(series_row: pd.Series) -> list[str]:
+    return [
+        column.title().replace(" ", "_").lower()
+        for column in row_to_dict(series_row).keys()
+    ]
+
+
+def pretty_dict(d: dict, indent: int = 4) -> str:
+    """Converts a dictionary into a pretty-printed, indented JSON string.
+
+    Handles custom types like Enums safely.
+    """
+    pretty = json.dumps(
+        d,
+        indent=indent,
+        default=lambda o: o.value if isinstance(o, Enum) else str(o),
+    )
+    log_chat_transcript("", pretty)
+
+    return pretty
+
+
+def match_company_by_keywords(text: str) -> str | None:
+    text = text.lower()
+    for company, keywords in COMPANY_KEYWORDS.items():
+        if any(keyword in text for keyword in keywords):
+            return company
+    return None

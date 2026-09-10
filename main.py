@@ -64,22 +64,28 @@ def run_main_pipeline(args: dict):
     if args.get("sample"):
         print(f"\nLoading {SAMPLE_SUPPORT_TICKETS_FILE}")
 
-    data_handler = DataHandler(args)
+    data_handle = DataHandler(args)
 
     # Store helper data into vector database
     chroma_model = ChromaModel()
     if args.get("rag"):
         start_time = start_timer()
-        chroma_model = run_rag_pipeline(args, data_handler.__dict__)
+        chroma_model = run_rag_pipeline(args, data_handle.__dict__)
         show_timer(start_time)
     # sys.exit(0)
 
     # Process the tickets 🚩
     output_rows = run_process_tickets_pipeline(
-        args, data_handler.__dict__, chroma_model
+        args, data_handle.__dict__, chroma_model
     )
 
-    return False
+    log_chat_transcript("OUTPUT_ROWS", output_rows)
+    sys.exit(0)
+
+    # Saving output rows to file
+    # data_handle.save_data(output_rows)
+
+    return True
 
 
 def parse_args(command_line_str: str) -> dict:

@@ -14,7 +14,7 @@ from agents.hackerrank_agent import HackerrankAgent
 from agents.support_agent import SupportAgent
 from agents.visa_agent import VisaAgent
 from src.prompt_builder import PromptBuilder
-from src.utils import log_chat_transcript
+from src.utils import log_chat_transcript, prettify_cols
 
 
 class TicketAnalyzer:
@@ -28,6 +28,26 @@ class TicketAnalyzer:
         row_index: int,
         ticket_df: pd.DataFrame,
     ) -> str:
+
+        # columns1 = SupportAgent.normalized_columns(ticket_df)
+
+        # columns2 = ticket_df.select_dtypes(
+        #    include=["object", "string"]
+        # ).columns.tolist()
+        # print(f"2 -> {columns2}")
+
+        # for column in columns2:
+        #    column = column.title().replace(" ", "_").lower()
+
+        # columns3 = ticket_df.columns.tolist()
+        # print(f"column={columns}")
+        # print(f"1 -> {columns1}")
+        # print(f"2 after -> {columns2}")
+        # print(f"3 -> {columns3}")
+
+        # import sys
+
+        # sys.exit(0)
 
         # Get company
         self.agent = self._get_agent(row_index, ticket_df)
@@ -53,8 +73,8 @@ class TicketAnalyzer:
         # generate a safe, grounded response
 
         # get prompt
-        columns = SupportAgent.normalized_columns(ticket_df)
-        exported_dataset = self.agent.export(columns)
+
+        exported_dataset = self.agent.export(prettify_cols(ticket_df))
         print(f"exported_dataset = {exported_dataset}")
 
         # Load Prompt Builder to get the prompt
@@ -91,9 +111,9 @@ class TicketAnalyzer:
         }
 
         if company not in agent_mapping:
-            raise ValueError(f"Unsupported company: '{company}'")
+            raise ValueError(f"🚨 Unsupported company: '{company}'")
 
-        self.support_agent_model.title = company.title() + " Agent Model"
-        agent_params["support_agent_model"] = self.support_agent_model
+        # self.support_agent_model.title = company.title() + " Agent Model"
+        # agent_params["support_agent_model"] = self.support_agent_model
 
         return agent_mapping[company](**agent_params)

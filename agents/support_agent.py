@@ -7,57 +7,12 @@
 
 from abc import ABC
 
+# Vendor Libraries
 import pandas as pd
 
-CRITICAL_RISK_TERMS = (
-    "fraud",
-    "unauthorized",
-    "breach",
-    "hacked",
-    "security vulnerability",
-    "data leak",
-    "legal action",
-    "lawsuit",
-    "subpoena",
-)
-
-HIGH_RISK_TERMS = (
-    "refund",
-    "chargeback",
-    "billing dispute",
-    "cancel my account",
-    "delete my account",
-    "gdpr",
-)
-
-URGENT_TERMS = (
-    "down",
-    "outage",
-    "cannot access",
-    "can't access",
-    "blocked",
-    "urgent",
-    "asap",
-    "immediately",
-)
-
-COMPANY_KEYWORDS = {
-    "claude": ("claude", "anthropic"),
-    "hackerrank": ("hackerrank", "test", "candidate", "interview"),
-    "visa": ("visa", "card", "payment", "merchant"),
-}
-
-
-def _match_company_by_keywords(text: str) -> str | None:
-    text = text.lower()
-    for company, keywords in COMPANY_KEYWORDS.items():
-        if any(keyword in text for keyword in keywords):
-            return company
-    return None
-
-
-def _row_to_dict(row) -> dict:
-    return row._asdict() if hasattr(row, "_asdict") else dict(row)
+from src.constants import CRITICAL_RISK_TERMS, HIGH_RISK_TERMS, URGENT_TERMS
+from src.enums import Company, RequestType, Risk, Status, Urgency
+from src.utils import match_company_by_keywords, row_to_dict
 
 
 class SupportAgent(ABC):
@@ -78,9 +33,9 @@ class SupportAgent(ABC):
         self.title = "Support Agent"
         self.row_index = row_index
         self._chroma_model = chroma_model
-        self._model = (
-            support_agent_model  # lazily set to a SupportAgentModel, if used
-        )
+        self._model = support_agent_model
+        self._risk_level = None  # low, high, critical
+        self._urgency = None  # normal, high
 
         # Read only
         self.issue = None
@@ -96,24 +51,23 @@ class SupportAgent(ABC):
         # Outputs
         self.justification = None
 
-        self._risk_level = None  # low, high, critical
-        self._urgency = None  # normal, high
-
         self._set_attrs(ticket_df)
 
         self.company = self._get_company(self.company)
 
     def _set_attrs(self, row) -> None:
-        for column, value in _row_to_dict(row).items():
+        for column, value in row_to_dict(row).items():
             key = column.title().replace(" ", "_").lower()
+            print(f"key = {key}")
             if hasattr(self, key):
                 setattr(self, key, value)
 
     def _get_company(self, company: str | None) -> str | None:
-        if not company or company.strip().lower() == "none":
+        if not company or company.strip().lower() == Company.NONE.lower():
             return self._find_company()
         return company.strip().lower()
 
+    # @TODO - defunct
     @staticmethod
     def resolve_company(row) -> str | None:
         """
@@ -122,19 +76,20 @@ class SupportAgent(ABC):
         the right SupportAgent subclass up front instead of building a
         throwaway base instance just to inspect `.company`.
         """
-        data = _row_to_dict(row)
+        data = row_to_dict(row)
         fields = {}
         for column, value in data.items():
             key = column.title().replace(" ", "_").lower()
             fields[key] = value
 
         company = fields.get("company")
-        if company and str(company).strip().lower() != "none":
+        if company and str(company).strip().lower() != Company.NONE.lower():
             return str(company).strip().lower()
 
         text = f"{fields.get('subject') or ''} {fields.get('issue') or ''}"
-        return _match_company_by_keywords(text)
+        return match_company_by_keywords(text)
 
+    # @TODO - defunct
     @staticmethod
     def normalized_columns(row) -> list[str]:
         """
@@ -144,8 +99,11 @@ class SupportAgent(ABC):
         """
         return [
             column.title().replace(" ", "_").lower()
-            for column in _row_to_dict(row).keys()
+            for column in row_to_dict(row).keys()
         ]
+
+    def _title_agent_model(self, title: str) -> None:
+        self._model.title = title
 
     def get_request_type(self) -> str:
         """
@@ -163,7 +121,7 @@ class SupportAgent(ABC):
         model's judgment.
         """
         if not self.issue or len(self.issue) < 10:
-            self.request_type = "invalid"
+            self.request_type = RequestType.INVALID
 
         self._risk_level = self._assess_risk(self.issue)
         self._urgency = self._assess_urgency(self.issue)
@@ -180,7 +138,7 @@ class SupportAgent(ABC):
         """
         text = (request or "").lower()
         is_urgent = any(term in text for term in URGENT_TERMS)
-        return "high" if is_urgent else "normal"
+        return Risk.HIGH if is_urgent else Urgency.NORMAL
 
     def _assess_risk(self, request: str) -> str:
         """
@@ -189,20 +147,20 @@ class SupportAgent(ABC):
         text = (request or "").lower()
 
         if any(term in text for term in CRITICAL_RISK_TERMS):
-            return "critical"
+            return Risk.CRITICAL
 
         if any(term in text for term in HIGH_RISK_TERMS):
-            return "high"
+            return Risk.HIGH
 
-        return "low"
+        return Risk.LOW
 
     def make_decision(self, request: str) -> str:
         """
         Make a decision based on the request: reply or escalate, based purely
         on the risk level from classify() (pre-retrieval).
         """
-        is_risky = self._risk_level in ("high", "critical")
-        return "Escalated" if is_risky else "Replied"
+        is_risky = self._risk_level in (Risk.HIGH, Risk.CRITICAL)
+        return Status.ESCALATED if is_risky else Status.REPLIED
 
     def retrieve_relevant_documents(self) -> list:
         """
@@ -224,35 +182,29 @@ class SupportAgent(ABC):
         """
         self.status = self.make_decision(self.issue)
 
-        if self.status == "Escalated":
+        if self.status == Status.ESCALATED:
             self.justification = (
                 f"Escalated: ticket matched '{self._risk_level}' risk signals."
             )
             return
 
         if not documents:
-            self.status = "Escalated"
+            self.status = Status.ESCALATED
             self.justification = (
-                "Escalated: no knowledge base match found to ground a"
+                f"{Status.ESCALATED}: no knowledge base match found to ground a"
                 " response."
             )
             return
 
         self.product_area = documents[0].metadata.get("product_area")
 
-    def export(self, columns: list) -> dict:
-        excluded_attrs = [
-            "_chroma_model",
-            "_model",
-            "_risk_level",
-            "_urgency",
-            "title",
-        ]
+    def export(self, ticket_columns: list) -> dict:
+
         class_dict = self.__dict__
 
         export_dict = {}
         for key, value in class_dict.items():
-            if key in columns:
+            if key in ticket_columns:
                 export_dict[key] = value
 
         return export_dict
@@ -276,4 +228,4 @@ class SupportAgent(ABC):
         found return blank and treat the search as global.
         """
         text = f"{self.subject or ''} {self.issue or ''}"
-        return _match_company_by_keywords(text)
+        return match_company_by_keywords(text)

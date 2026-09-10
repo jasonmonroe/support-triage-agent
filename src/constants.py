@@ -73,12 +73,49 @@ SUPPORT_TICKETS_FILE = os.path.join(SUPPORT_TICKETS_DIR, "support_tickets.csv")
 OUTPUT_FILE = os.path.join(SUPPORT_TICKETS_DIR, "output.csv")
 
 # Company Helper files
-COMPANIES = ["Claude", "Hackerrank", "Visa"]
-REQUEST_TYPES = ["product_issue", "feature_request", "bug", "invalid"]
+
 CLAUDE_DIR = os.path.join(DATA_DIR, "claude")
 HACKERRANK_DIR = os.path.join(DATA_DIR, "hackerrank")
 VISA_DIR = os.path.join(DATA_DIR, "visa")
 
+# Company Helpers
+CRITICAL_RISK_TERMS = (
+    "fraud",
+    "unauthorized",
+    "breach",
+    "hacked",
+    "security vulnerability",
+    "data leak",
+    "legal action",
+    "lawsuit",
+    "subpoena",
+)
+
+HIGH_RISK_TERMS = (
+    "refund",
+    "chargeback",
+    "billing dispute",
+    "cancel my account",
+    "delete my account",
+    "gdpr",
+)
+
+URGENT_TERMS = (
+    "down",
+    "outage",
+    "cannot access",
+    "can't access",
+    "blocked",
+    "urgent",
+    "asap",
+    "immediately",
+)
+
+COMPANY_KEYWORDS = {
+    "claude": ("claude", "anthropic"),
+    "hackerrank": ("hackerrank", "test", "candidate", "interview"),
+    "visa": ("visa", "card", "payment", "merchant"),
+}
 
 """
 Define prompt messages and queries

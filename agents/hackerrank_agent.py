@@ -6,6 +6,7 @@
 
 # Local Libraries
 from agents.support_agent import SupportAgent
+from src.utils import log_chat_transcript
 
 
 class HackerrankAgent(SupportAgent):
@@ -18,10 +19,14 @@ class HackerrankAgent(SupportAgent):
 
         self.title = "HackerRank Agent"
         self.company = "Hackerrank"
+        self._title_agent_model(f"{self.title} Model")
+        print(f"Model Title: {self._model.title}")
 
     def ground(self, documents: list):
+        log_chat_transcript(
+            "GROUNDING_DOCUMENTS", f"Grounding {len(documents)} documents."
+        )
         document_content = ""
-
         for document in documents:
             document_content += document.page_content + "\n-----------\n"
 

@@ -20,7 +20,7 @@ from src.constants import (
     SUPPORT_TICKETS_FILE,
     VISA_DIR,
 )
-from src.utils import log_chat_transcript
+from src.utils import log_chat_transcript, pretty_dict
 
 
 class DataHandler:
@@ -35,8 +35,19 @@ class DataHandler:
         self.output = None
         self.support_tickets = None
         self.md_files = {"claude": [], "hackerrank": [], "visa": []}
+        self._filepath = None
 
+        # Load and clean support tickets
         self._load_data(args.get("sample", False))
+
+        if args.get("eda", False):
+            self._describe_data()
+
+        self._clean_data()
+
+        import sys
+
+        sys.exit(0)
 
         # Load data files
         if args.get("rag"):
@@ -45,9 +56,6 @@ class DataHandler:
             self.md_files["hackerrank"] = self._load_md_files(HACKERRANK_DIR)
             self.md_files["visa"] = self._load_md_files(VISA_DIR)
             log_chat_transcript("MARKDOWN_FILES", self.md_files)
-
-        if args.get("eda", False):
-            self._describe_data()
 
     def _load_data(self, use_sample: bool) -> None:
         """
@@ -59,19 +67,16 @@ class DataHandler:
 
         self.output = pd.read_csv(OUTPUT_FILE)
 
-        file_path = (
+        filepath = (
             SAMPLE_SUPPORT_TICKETS_FILE if use_sample else SUPPORT_TICKETS_FILE
         )
 
-        self.support_tickets = pd.read_csv(file_path)
-        # itertuples() builds namedtuples, which require valid Python
-        # identifiers — a raw "Product Area" column gets silently renamed
-        # to a positional "_5" instead. Normalize spaces to underscores
-        # up front so every column survives itertuples() with its real name.
-        self.support_tickets.columns = self.support_tickets.columns.str.replace(
-            " ", "_"
-        )
+        print(f"\n 📁 Loading {filepath}")
 
+        self.support_tickets = pd.read_csv(filepath)
+        self._filepath = filepath
+
+    # @TODO - defunct
     def _compact_md_files(self, dir) -> None:
         """This version compacts all markdown files together"""
         mds_dir = Path(dir)
@@ -79,6 +84,7 @@ class DataHandler:
         self.md_files = [p.read_text(encoding="utf-8") for p in md_files]
         log_chat_transcript("COMPACT_MARKDOWN_FILES", self.md_files)
 
+    # @TODO - defunct
     def _load_md_files_dbg(self, dir) -> list:
         root_dir = Path(dir)
         print(
@@ -139,23 +145,67 @@ class DataHandler:
             "content": file_content,
         }
 
+    def _clean_data(self):
+        log_chat_transcript(
+            "CLEANING_SUPPORT_TICKETS", f"🧹 Cleaning {self._filepath}..."
+        )
+
+        """
+        Note: The csv file is sloppy with unnecessary spaces in the headers.
+        Therefore we need to do some slight formatting to make it useable.
+        itertuples() builds namedtuples, which require valid Python
+        identifiers — a raw "Product Area" column gets silently renamed
+        to a positional "_5" instead. Normalize spaces to underscores
+        up front so every column survives itertuples() with its real name.
+        """
+
+        self.support_tickets.columns = (
+            self.support_tickets.columns.str.replace(" ", "_")
+        )
+
+        df = self.support_tickets
+        df.columns = df.columns.str.strip()
+
+        # 2. Vectorized cleaning for text/object columns
+        text_cols = df.select_dtypes(include=["object", "string"]).columns
+
+        for col in text_cols:
+            # Fill missing values, ensure string representation, and strip whitespace in one pass
+            df[col] = df[col].fillna("").astype(str).str.strip()
+
+        self.support_tickets = df
+
     def _describe_data(self) -> None:
         """
         Describes the data.
         """
         print("\n# --- 📚 Data Description 📚 --- #")
 
+        # --- Summary Print Statements ---
         print(f"Number of rows: {len(self.support_tickets)}")
-        print(f"Number of columns: {len(self.support_tickets.columns)}")
-        print(f"Columns: {self.support_tickets.columns.tolist()}")
-        print(f"Data types: {self.support_tickets.dtypes.to_dict()}")
+        print(f"\n 🗂️ Number of columns: {len(self.support_tickets.columns)}")
         print(
-            f"Missing values: {self.support_tickets.isnull().sum().to_dict()}"
+            f"\n 🗂️ Columns:\n{pretty_dict(self.support_tickets.columns.tolist())}"
         )
-        print(f"Unique values: {self.support_tickets.nunique().to_dict()}")
-        print(f"Value counts: {self.support_tickets.value_counts().to_dict()}")
         print(
-            f"Descriptive statistics: {self.support_tickets.describe().to_dict()}"
+            f"\n 🗂️ Data types:\n{pretty_dict(self.support_tickets.dtypes.to_dict())}"
+        )
+        print(
+            f"\n 🗂️ Missing values:\n{pretty_dict(self.support_tickets.isnull().sum().to_dict())}"
+        )
+        print(
+            f"\n 🗂️ Unique values:\n{pretty_dict(self.support_tickets.nunique().to_dict())}"
+        )
+
+        # Convert Tuples from value_counts() into string keys for JSON serialization
+        val_counts_dict = {
+            str(k): v
+            for k, v in self.support_tickets.value_counts().to_dict().items()
+        }
+        print(f"\n 🗂️ Value counts:\n{pretty_dict(val_counts_dict)}")
+
+        print(
+            f"\n 🗂️ Descriptive statistics:\n{pretty_dict(self.support_tickets.describe(include='all').to_dict())}"
         )
 
         print("\n# --- Data Head --- #")
@@ -165,10 +215,10 @@ class DataHandler:
         print(self.support_tickets.info())
 
         print("\n# --- Data Describe --- #")
-        print(self.support_tickets.describe())
+        print(self.support_tickets.describe(include="all"))
 
         print("\n# --- Data Columns --- #")
-        print(self.support_tickets.columns)
+        print(self.support_tickets.columns.tolist())
 
         print("\n# --- Data Index --- #")
         print(self.support_tickets.index)
@@ -187,5 +237,7 @@ class DataHandler:
         Saves the data.
         """
 
-        print(f"--- 💾 Saving data to {OUTPUT_FILE}.")
+        log_chat_transcript(
+            "SAVING OUTPUT ROWS", f"--- 💾 Saving data to {OUTPUT_FILE}."
+        )
         csv_data.to_csv(OUTPUT_FILE, index=False)

@@ -15,6 +15,7 @@ class VisaAgent(SupportAgent):
         )
         self.title = "Visa Agent"
         self.company = "Visa"
+        self._title_agent_model(f"{self.title} Model")
 
     def ground(self, documents: list, ticket_response: str | None):
         pass

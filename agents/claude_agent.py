@@ -16,6 +16,7 @@ class ClaudeAgent(SupportAgent):
 
         self.title = "Claude Agent"
         self.company = "Claude"
+        self._title_agent_model(f"{self.title} Model")
 
     def ground(self, documents: list):
         pass
