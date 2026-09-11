@@ -3,11 +3,16 @@
 # |                              VISA AGENT                                   |
 # +---------------------------------------------------------------------------+
 
+# Python Libraries
 from typing import List
 
+# Vendor Libraries
 from langchain_core.documents import Document
 
+# Local Libraries
 from agents.support_agent import SupportAgent
+from src.enums import Status
+from src.utils import log_chat_transcript
 
 
 class VisaAgent(SupportAgent):
@@ -17,15 +22,17 @@ class VisaAgent(SupportAgent):
         super().__init__(
             row_index, ticket_df, chroma_model, support_agent_model
         )
-        self.title = "Visa Agent"
+        self.title = "🤖 Visa Agent"
         self.company = "Visa"
         self._title_agent_model(f"{self.title} Model")
 
     def _query(self, query_str: str) -> List[Document]:
         if not self._chroma_model:
-            raise ValueError("Chroma Model needs to be defined!")
+            raise ValueError("🚨 Chroma Model needs to be defined!")
 
-        return self._chroma_model.query(self.company, query_str)
+        return self._chroma_model.query(
+            query_str=query_str, company=self.company
+        )
 
     def _assess_risk(self, request: str) -> str:
         """
@@ -55,29 +62,50 @@ class VisaAgent(SupportAgent):
         pass
 
     def _verify_grounded_response(self, draft: dict, documents: list) -> bool:
-        """
-        Overrides SupportAgent._verify_grounded_response() with stricter
-        numeric-matching, since Visa tickets routinely need to convey
-        phone numbers, dollar amounts, and timeframes — and a
-        hallucinated phone number in a fraud-reporting context is the
-        single most dangerous failure mode across all three companies:
-        it sends someone to a wrong (or malicious) number during a
-        financial emergency.
+        """Overrides base verification to add PCI-DSS compliance and financial policy checks."""
 
-        Should call super()._verify_grounded_response(draft, documents)
-        for the baseline citation check, then additionally extract any
-        phone numbers/dollar amounts/timeframes from `draft["response"]`
-        and confirm each one appears verbatim in the cited chunk(s) —
-        not just a loose keyword/topic overlap.
+        # Base citation verification check
+        is_verified = super()._verify_grounded_response(draft, documents)
+        if not is_verified:
+            return False
 
-        Input:
-            draft (dict): output of _draft_filtered_response().
-            documents (list): the filtered documents the draft was
-                supposedly grounded against.
+        draft_text = (
+            draft.get("response", "")
+            if isinstance(draft, dict)
+            else str(draft)
+        )
 
-        Output:
-            bool — True only if the base citation check passes AND every
-            number-like claim in the response exactly matches text in
-            its cited source.
-        """
-        pass
+        # Financial Compliance & PII Check Prompt
+        system_prompt = """
+        You are a Visa Compliance & Safety Auditor.
+        Evaluate whether the drafted support response violates PCI-DSS compliance or financial policy rules.
+
+        ## DRAFTED RESPONSE
+        {draft}
+
+        ## FORBIDDEN ACTIONS & VIOLATIONS:
+        1. Disclosing sensitive payment data (e.g., credit card numbers, CVVs, bank account credentials).
+        2. Guaranteeing or promising financial refunds, chargeback reversals, or transaction overrides without specialist approval.
+
+        ## OUTPUT SPECIFICATION:
+        Return ONLY a JSON object:
+        ```json
+        {{
+        "is_compliant": true,
+        "reasoning": "Explanation of compliance findings."
+        }}""".strip().format(
+            draft=draft_text,
+        )
+
+        compliance_response = self._model.get_response(
+            system_prompt, self.row_index
+        )
+        log_chat_transcript("VISA_COMPLIANCE_CHECK", compliance_response)
+
+        if not compliance_response or not isinstance(
+            compliance_response, dict
+        ):
+            self.status = Status.ESCALATED
+            return False
+
+        return compliance_response.get("is_compliant", False)

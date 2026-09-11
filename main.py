@@ -34,16 +34,14 @@ import os
 import sys
 import warnings
 
-from models.chroma_model import ChromaModel
-
 # Local Libraries
+from models.chroma_model import ChromaModel
 from pipelines.main import run_process_tickets_pipeline, run_rag_pipeline
 from src.constants import (
     APP_NAME,
     ARGS_LIST,
     CHAT_TRANSCRIPT_FILE,
     OUTPUT_FILE,
-    SAMPLE_SUPPORT_TICKETS_FILE,
 )
 from src.data_handler import DataHandler
 from src.utils import (
@@ -61,23 +59,22 @@ def run_main_pipeline(args: dict):
         f"🏃 Runnning {inspect.currentframe().f_code.co_name.title().replace('_', ' ')}"
     )
 
-    if args.get("sample"):
-        print(f"\nLoading {SAMPLE_SUPPORT_TICKETS_FILE}")
-
     data_handle = DataHandler(args)
+    dataset = data_handle.__dict__
+    chroma_model = ChromaModel()
 
     # Store helper data into vector database
-    chroma_model = ChromaModel()
     if args.get("rag"):
         start_time = start_timer()
-        chroma_model = run_rag_pipeline(args, data_handle.__dict__)
+        rag_status = run_rag_pipeline(args, dataset, chroma_model)
         show_timer(start_time)
-    # sys.exit(0)
+
+        # Check if rag was successful
+        if not rag_status:
+            log_chat_transcript("RAG_STATUS", "⚠️ No documents were ingested.")
 
     # Process the tickets 🚩
-    output_rows = run_process_tickets_pipeline(
-        args, data_handle.__dict__, chroma_model
-    )
+    output_rows = run_process_tickets_pipeline(args, dataset, chroma_model)
 
     log_chat_transcript("OUTPUT_ROWS", output_rows)
     sys.exit(0)

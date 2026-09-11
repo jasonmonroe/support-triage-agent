@@ -7,16 +7,13 @@ from __future__ import annotations
 # Python Libraries
 import os
 import shutil
-import time
 
 import chromadb
 
 # Vector Libraries
-from google.genai.errors import ClientError
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_google_genai._common import GoogleGenerativeAIError
 from langchain_huggingface import HuggingFaceEmbeddings
 
 # Local Libraries
@@ -25,16 +22,13 @@ from src.constants import (
     CHROMA_DB_DIR,
     CHROMA_RESULT_CNT,
     CHROMA_SERVER_NO_TELEMETRY,
-    DB_BATCH_SIZE,
     DOCUMENT_DIR_PERM,
-    EMBED_PAUSE_TIMER,
     HF_BATCH_SIZE,
     MODEL_API_KEY,
     MODEL_EMBEDDING,
-    RATE_LIMIT_PAUSE_TIMER,
-    RATE_LIMIT_RETRIES,
 )
-from src.utils import log_chat_transcript, sum_bytes_in_dir
+from src.enums import Company
+from src.utils import get_progress_bar, log_chat_transcript, sum_bytes_in_dir
 
 
 class ChromaModel:
@@ -66,7 +60,6 @@ class ChromaModel:
             params["filter"] = {"company": company.lower()}
 
         return self.vector_storage.similarity_search_with_score(
-            # as_retriever(
             search_type="similarity",
             search_kwargs=params,
         )
@@ -86,7 +79,8 @@ class ChromaModel:
 
     def _get_embeddings(self) -> GoogleGenerativeAIEmbeddings:
         return GoogleGenerativeAIEmbeddings(
-            model=f"models/{self.embedding_model}",  # e.g., "models/text-embedding-004" or "models/gemini-embedding-001"
+            # e.g., "models/text-embedding-004" or "models/gemini-embedding-001"
+            model=f"models/{self.embedding_model}",
             google_api_key=MODEL_API_KEY,
         )
 
@@ -114,7 +108,7 @@ class ChromaModel:
         that parses vendor rate limit messages and backs off gracefully.
         """
 
-        # 11,450 chunks, 790+ md files
+        # 11,450 chunks, 774 md files
         document_cnt = len(documents)
 
         print(
@@ -122,6 +116,9 @@ class ChromaModel:
         )
 
         for i in range(0, document_cnt, batch_size):
+            log_chat_transcript(
+                "CHROMA_MODEL", get_progress_bar(i, document_cnt)
+            )
             self.vector_storage.add_documents(documents[i : i + batch_size])
 
         return True if i >= document_cnt else False
@@ -143,125 +140,12 @@ class ChromaModel:
         """
         kwargs = {"k": CHROMA_RESULT_CNT}
 
-        if company and company.strip().lower() != "none":
+        if company and company.strip().lower() != Company.NONE.lower():
             kwargs["filter"] = {"company": company.lower()}
 
         return self.vector_storage.similarity_search_with_score(
             query=query_str, **kwargs
         )
-
-    # @TODO  - defunct
-    def add_vector_documents_prev(
-        self, documents: list, batch_size: int = DB_BATCH_SIZE
-    ) -> None:
-        """
-        Embeds and adds documents to the vector store in batches using explicit retry logic
-        that parses vendor rate limit messages and backs off gracefully.
-        """
-        document_cnt = len(documents)
-
-        print(
-            f"\n# --- ➕ Adding {document_cnt} chunked vector documents with a batch size of {batch_size}. ➕ --- #"
-        )
-
-        # 11,450 chunks, 790+ md files
-        # self.vector_storage.reset_collection()
-
-        total_batches = (document_cnt + batch_size - 1) // batch_size
-        for i in range(0, document_cnt, batch_size):
-            batch = documents[i : i + batch_size]
-            batch_num = (i // batch_size) + 1
-
-            print(
-                f"📦 Processing batch {batch_num}/{total_batches} ({len(batch)} chunks)..."
-            )
-            success = self._add_batch_with_retry(batch, batch_index=batch_num)
-
-            if not success:
-                print(
-                    f"🚨 Stopping ingestion due to unrecoverable API error at batch {batch_num}. 🚨"
-                )
-                break
-
-            # Throttling pause to stay under RPM limit
-            time.sleep(EMBED_PAUSE_TIMER)
-
-    # @TODO - defunct
-    def _add_batch_with_retry(self, batch: list, batch_index: int = 0) -> bool:
-        """
-        Attempts to write a document batch to ChromaDB.
-        Catches 429 RateLimit/ResourceExhausted errors, extracts delay times, and retries.
-        """
-        attempt = 0
-        while attempt < RATE_LIMIT_RETRIES:
-            try:
-                self.vector_storage.add_documents(batch)
-                return True
-
-            except (ClientError, GoogleGenerativeAIError) as e:
-                attempt += 1
-                error_msg = str(e)
-                log_chat_transcript(
-                    "CHROMA_EMBED_RATE_LIMIT",
-                    f"Batch {batch_index} Attempt {attempt} Error: {error_msg}",
-                )
-
-                if attempt >= RATE_LIMIT_RETRIES:
-                    print(
-                        f"\n🚨 Batch {batch_index} | Maximum retries ({RATE_LIMIT_RETRIES}) reached! Ingestion failed. 🚨"
-                    )
-                    return False
-
-                delay_time = self._parse_delay_time(error_msg)
-                print(
-                    f"\n🚨 Batch {batch_index} | Rate limit / Quota exceeded (429) on attempt {attempt}/{RATE_LIMIT_RETRIES} 🚨"
-                )
-                print(
-                    f"⏸️  Pausing for {delay_time:.2f} seconds before retry..."
-                )
-
-                time.sleep(delay_time)
-
-            except Exception as e:
-                print(
-                    f"\n🚨 Batch {batch_index} | Unexpected error adding batch: {e} 🚨"
-                )
-                log_chat_transcript("CHROMA_EMBED_UNEXPECTED_ERROR", e)
-                return False
-
-        return False
-
-    # @TODO - defunct
-    def _parse_delay_time(self, error_message: str) -> float:
-        """
-        Parses Google API error response text for vendor retry suggestions (e.g. 'please retry in X.Xs').
-        """
-        err = error_message.lower()
-        anchor_str = "please retry in "
-        end_char = "s"
-
-        if anchor_str not in err:
-            return float(RATE_LIMIT_PAUSE_TIMER * 2)
-
-        try:
-            start_pos = err.find(anchor_str) + len(anchor_str)
-            end_pos = err.find(end_char, start_pos)
-            delay_str = err[start_pos:end_pos].strip()
-
-            # Remove any trailing non-numeric characters if needed
-            delay_time = float(
-                "".join(c for c in delay_str if c.isdigit() or c == ".")
-            )
-
-            # Cap maximum pause delay to prevent infinitely hanging scripts
-            return min(max(delay_time + 1.0, 2.0), 60.0)
-        except Exception as e:
-            new_timer = float(RATE_LIMIT_PAUSE_TIMER * 2)
-
-            log_chat_transcript(
-                "RATE_LIMIT_ERROR", f"{e}\nreturning {new_timer}"
-            )
-            return new_timer
 
     @staticmethod
     def delete() -> None:

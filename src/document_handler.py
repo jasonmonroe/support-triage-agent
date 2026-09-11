@@ -28,11 +28,7 @@ class DocumentHandler:
         self._documents = []
         self._chunks = []
 
-    def _create(self, content: str, metadata: dict):
-
-        # if "doc_type" not in metadata:
-        #    metadata["doc_type"] = "semantic_chunk"
-
+    def _create(self, content: str, metadata: dict) -> Document:
         return Document(
             id=metadata.get("id"),
             type="Document",
@@ -53,7 +49,7 @@ class DocumentHandler:
         # Convert raw text into Langchain document objects
         documents = []
         for company, company_list in self._md_files.items():
-            for file_order, company_dict in enumerate(company_list):  # list
+            for file_order, company_dict in enumerate(company_list):
                 # Get metadata for document creation
                 content = company_dict.get("content")
                 metadata = meta.extract(company, file_order, company_dict)
@@ -63,7 +59,6 @@ class DocumentHandler:
                 document = self._create(content, metadata)
                 documents.append(document)
 
-        # print(f"file_order={file_order}")
         # Configure text splitters
         self._chunks = self._create_chunks(documents)
         self._documents = documents
@@ -79,9 +74,6 @@ class DocumentHandler:
             ("#", "Title"),  # <h1>
             ("##", "Section"),  # <h2>
             ("###", "Subsection"),  # <h3>
-            # ("####", "Detail"),  # <h4>
-            # ("#####", "Note"),   # <h5>
-            # ("######", "Meta"),  # <h6>
         ]
 
         markdown_splitter = MarkdownHeaderTextSplitter(
@@ -140,15 +132,25 @@ class DocumentHandler:
             docs = [doc]
             print("\n\t 📄 Document:  ----")
 
+        # Display if no documents to show...
         if not docs:
             message = "⚠️ No documents to show."
             log_chat_transcript("DOCUMENT_PROFILE", message)
             return None
 
-        print(f"\n# --- 🗃️ Showing {len(docs)} Documents 🗃️ --- #")
+        # This will display all documents or one particular one by file_order
+        document_body = ""
+        document_body += f"\n# --- 🗃️ Showing {len(docs)} Documents 🗃️ --- #"
+        # print(f"\n# --- 🗃️ Showing {len(docs)} Documents 🗃️ --- #")
         for i, doc in enumerate(docs):
-            print(f"\n\t---- 📄 Document: {i + 1} ----")
+            document_body += f"\n\t---- 📄 Document: {i + 1} ----"
 
+            for key, value in doc.metadata.items():
+                document_body += f"{key.title().replace('_', ' ')}: {value}"
+
+            # print(f"\n\t---- 📄 Document: {i + 1} ----")
+
+            """
             print("\t\tSource:", doc.metadata.get("source", "Unknown"))
             print(
                 "\t\tTitle",
@@ -162,7 +164,11 @@ class DocumentHandler:
 
             print("\t\tFile Order:", doc.metadata.get("file_order", "Unknown"))
             print("\t\tPage Content:", doc.page_content[:1024])
-            print(f"\t+--- Document: {i + 1} ---+")
+            """
+            # print(f"\t+--- Document: {i + 1} ---+")
+            document_body += f"\t+--- Document: {i + 1} ---+\n"
+
+            log_chat_transcript("DOCUMENT_PROFILE", document_body)
 
         print("\n")
 

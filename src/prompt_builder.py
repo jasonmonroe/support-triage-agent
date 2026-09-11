@@ -8,7 +8,7 @@ import xmltodict
 
 # Local Libraries
 from src.constants import USER_PROMPT_TEMPLATE
-from utils import log_chat_transcript
+from src.utils import log_chat_transcript
 
 
 class PromptBuilder:
@@ -20,8 +20,6 @@ class PromptBuilder:
         self.prompt = self._build(dataset) or ""
 
     def _build(self, dataset: dict) -> str:
-        print("_build()")
-
         # Build ticket data to convert to XML
         ticket_data = self._get_ticket_data(dataset)
 
@@ -43,7 +41,7 @@ class PromptBuilder:
                 dict_data, pretty=True, full_document=False
             )
         except Exception as e:
-            log_chat_transcript("XML_CONVERSION_ERROR", e)
+            log_chat_transcript("PROMPT_BUILDER", e)
 
             # Return an empty string if dict_data is empty or invalid.
             return ""
@@ -82,7 +80,7 @@ class PromptBuilder:
                     "#text": document.page_content,
                     # '#text' creates the inner element text
                 }
-                for document in document_chunks
+                for document, _score in document_chunks
             ]
         }
 

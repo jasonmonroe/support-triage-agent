@@ -48,21 +48,16 @@ class SupportAgent(ABC):
         self.row_index = row_index
         self._chroma_model = chroma_model
         self._model = support_agent_model
-        self._risk_level = None  # low, high, critical
-        self._urgency = None  # normal, high
+        self._risk_level = None
+        self._urgency = None
 
-        # Read only
         self.issue = None
         self.subject = None
         self.company = None
-
-        # Outputs (override)
         self.response = None
         self.product_area = None
-        self.status = None  # Replied or Escalated
+        self.status = None
         self.request_type = None
-
-        # Outputs
         self.justification = None
 
         self._set_attrs(ticket_df)
@@ -72,7 +67,6 @@ class SupportAgent(ABC):
     def _set_attrs(self, row) -> None:
         for column, value in row_to_dict(row).items():
             key = column.title().replace(" ", "_").lower()
-            print(f"key = {key}")
             if hasattr(self, key):
                 setattr(self, key, value)
 
@@ -83,12 +77,6 @@ class SupportAgent(ABC):
 
     def _title_agent_model(self, title: str) -> None:
         self._model.title = title
-
-    def get_request_type(self) -> str:
-        """
-        Identify the request type from the request.
-        """
-        return self.request_type
 
     def classify(self) -> None:
         """
@@ -104,12 +92,6 @@ class SupportAgent(ABC):
 
         self._risk_level = self._assess_risk(self.issue)
         self._urgency = self._assess_urgency(self.issue)
-
-    def classify_issue(self, request: str) -> str:
-        """
-        Classify the issue from the request.
-        """
-        return "issue classification"
 
     def _assess_urgency(self, request: str) -> str:
         """
@@ -152,6 +134,7 @@ class SupportAgent(ABC):
 
         return self._query(query)
 
+    # @TODO - not in use.  Research to see if this method is needed.
     def ground(self, documents: list) -> None:
         """
         Decide reply-vs-escalate using the risk-based decision plus retrieval
@@ -159,7 +142,7 @@ class SupportAgent(ABC):
         knowledge base grounds an answer, so the LLM is never asked to answer
         ungrounded. Also lifts product_area from the top-matching chunk's
         metadata rather than asking the LLM to guess it freehand.
-        """
+
         self.status = self.make_decision(self.issue)
 
         if self.status == Status.ESCALATED:
@@ -177,6 +160,7 @@ class SupportAgent(ABC):
             return
 
         self.product_area = documents[0].metadata.get("product_area")
+        """
 
     def export(self, ticket_columns: list) -> dict:
 
@@ -188,14 +172,6 @@ class SupportAgent(ABC):
                 export_dict[key] = value
 
         return export_dict
-
-    def output(self, llm_response):
-        """
-        Returns output.  Use three inputs and 5 outputs (status, product_area, response, justificiation, request_ type)
-        to create the output.csv row
-        """
-
-        return "output"
 
     def _query(self, input_str: str) -> list:
         """
@@ -212,8 +188,8 @@ class SupportAgent(ABC):
 
     def _find_company(self) -> str | None:
         """
-        If company is not defined look for context clues to identify it.  If still not
-        found return blank and treat the search as global.
+        If company is not defined look for context clues to identify it.  If
+        still not found return blank and treat the search as global.
         """
         text = f"{self.subject or ''} {self.issue or ''}"
         return match_company_by_keywords(text)
@@ -447,11 +423,23 @@ class SupportAgent(ABC):
             treated as fact.
         """
 
+        # Format document list for system prompt.
+        formatted_docs = json.dumps(
+            [
+                {
+                    "chunk_idx": doc.metadata.get("chunk_idx", idx),
+                    "content": doc.page_content,
+                }
+                for idx, doc in enumerate(documents)
+            ],
+            indent=2,
+        )
+
         system_prompt = """
         You are an AI Support Response Specialist. Your task is to draft a user-facing response to a support ticket using ONLY the provided retrieved context documents.
 
         ## RETRIEVED CONTEXT DOCUMENTS
-        {formatted_docs}
+        {documents}
 
         ## TASK INSTRUCTIONS:
         1. Answer the support ticket issue using ONLY facts present in the context documents above. Do not assume or extrapolate policies[span_0](start_span)[span_0](end_span).
@@ -468,18 +456,7 @@ class SupportAgent(ABC):
         "cited_chunks": [0],
         "reasoning": "Concise justification for why the context is sufficient or insufficient."
         }}
-        """.strip().format(
-            formatted_docs=json.dumps(
-                [
-                    {
-                        "chunk_idx": doc.metadata.get("chunk_idx", idx),
-                        "content": doc.page_content,
-                    }
-                    for idx, doc in enumerate(documents)
-                ],
-                indent=2,
-            )
-        )
+        """.strip().format(documents=formatted_docs)
 
         # Parse response, update attributes
         draft_response = self._model.get_response(
@@ -535,10 +512,10 @@ class SupportAgent(ABC):
         Verify whether the proposed draft response is factually supported by the referenced context documents.
 
         ## DRAFT RESPONSE TO VERIFY
-        {formatted_draft}
+        {draft}
 
         ## REFERENCE CONTEXT DOCUMENTS
-        {formatted_docs}
+        {documents}
 
         ## CRITERIA FOR VERIFICATION:
         1. Verify that every `cited_chunks` index in the draft actually exists in the reference context documents.
@@ -623,7 +600,7 @@ class SupportAgent(ABC):
         {subject}
 
         ## DRAFTED RESPONSE
-        {draft_text}
+        {draft}
 
         ## EVALUATION CRITERIA:
         - Focus solely on the relationship between the ticket issue/subject and the drafted response[span_1](start_span)[span_1](end_span).
@@ -660,6 +637,31 @@ class SupportAgent(ABC):
             return True
 
         return False
+
+    def evaluate_groundness(self, results: dict) -> None:
+        """Evaluates the grounding and precision results dictionary and updates
+
+        the agent's status, response, and justification accordingly.
+        """
+        is_grounded = results.get("grounded", False)
+        is_precise = results.get("precise", False)
+        reasoning = results.get("reasoning", "No justification provided.")
+
+        # Escalate if EITHER grounding OR precision fails
+        if not is_grounded or not is_precise:
+            self.status = Status.ESCALATED
+            self.response = (
+                "Your request has been escalated to a support specialist for"
+                " further review."
+            )
+            self.justification = f"Escalated support ticket: {reasoning}"
+        else:
+            # Both gates passed successfully
+            self.status = Status.REPLIED
+            self.response = results.get("response", self.response)
+            self.justification = (
+                f"Answered using grounded documentation: '{reasoning}'"
+            )
 
     def _is_company(self, company: str) -> bool:
         return any(company == c.value for c in Company)

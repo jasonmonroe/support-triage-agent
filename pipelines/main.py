@@ -14,6 +14,7 @@ from models.chroma_model import ChromaModel
 from models.support_agent_model import SupportAgentModel
 from src.constants import CHROMA_DB_DIR, PAUSE_TIMER
 from src.document_handler import DocumentHandler
+from src.enums import RagStatus
 from src.ticket_analyzer import TicketAnalyzer
 from src.utils import (
     get_progress_bar,
@@ -25,7 +26,9 @@ from src.utils import (
 )
 
 
-def run_rag_pipeline(args: dict, dataset: dict):
+def run_rag_pipeline(
+    args: dict, dataset: dict, chroma_model: ChromaModel
+) -> RagStatus:
     print(
         f"\n🏃 Runnning {inspect.currentframe().f_code.co_name.title().replace('_', ' ')}..."
     )
@@ -49,21 +52,80 @@ def run_rag_pipeline(args: dict, dataset: dict):
 
     data_refresh = args.get("refresh")
 
-    def _ingest(chroma_model: ChromaModel) -> None:
-        doc_handle = DocumentHandler(dataset.get("md_files"))
-        document_chunks = doc_handle.process()
-        log_chat_transcript("🗄️ DOCUMENT_COUNT", doc_handle.count_documents())
-        log_chat_transcript("🗄️ CHUNK_COUNT", doc_handle.count_chunks())
+    def _ingest(
+        chroma_model: ChromaModel,
+        doc_handle: DocumentHandler,
+        collection_count: int,
+    ) -> RagStatus:
 
-        chroma_model.add_vector_documents(document_chunks)
+        # doc_handle = DocumentHandler(dataset.get("md_files"))
+        document_chunks = doc_handle.process()
+        document_cnt = doc_handle.count_documents()
+
+        log_chat_transcript(
+            "RAG_INJECTION", f"🗄️ DOCUMENT_COUNT: {document_cnt}."
+        )
+        log_chat_transcript(
+            "RAG_INJECTION", f"🗄️ CHUNK_COUNT: {doc_handle.count_chunks()}."
+        )
+
+        start_time = start_timer()
+        vector_status = chroma_model.add_vector_documents(document_chunks)
+        show_timer(start_time)
+
+        log_chat_transcript(
+            "RAG_INJECTION", f"Vector Status: {vector_status}."
+        )
 
         chroma_db_dir_size = sum_bytes_in_dir(os.path.abspath(CHROMA_DB_DIR))
         log_chat_transcript(
-            "CHROMA_DB_DIR_SIZE",
+            "RAG_INJECTION",
             f"Chroma DB filesize is {chroma_db_dir_size}.",
         )
 
-        doc_handle.show(random.randint(0, doc_handle.count_documents()))
+        # Show random document information.
+        doc_handle.show(random.randint(0, document_cnt))
+
+        # Get new collection count
+        new_collection_count = chroma_model.get_collection_count()
+        log_chat_transcript(
+            "RAG_INJECTION", f"New collection count: {new_collection_count}."
+        )
+
+        return _verify(document_cnt, new_collection_count)
+
+    def _verify(document_cnt: int, collection_count: int) -> RagStatus:
+        # Count how many documents were ingested (collection)
+        log_chat_transcript(
+            "RAG_INJECTION",
+            f"{chroma_model.collection_name} Collection Count: {collection_count}.",
+        )
+
+        # Verify injection data
+        if collection_count == document_cnt:
+            log_chat_transcript(
+                "RAG_INJECTION",
+                f"✅ Success all documents {document_cnt} were collected!",
+            )
+            return RagStatus.SUCCESS
+
+        elif collection_count > document_cnt:
+            raise ValueError(
+                f"ERROR: How can there be more collections {collection_count} than documents {document_cnt}?!",
+            )
+
+        elif document_cnt > collection_count and collection_count > 0:
+            log_chat_transcript(
+                "RAG_INJECTION",
+                f"⚠️ WARNING: Only {collection_count} were collected.",
+            )
+            return RagStatus.PARTIAL
+
+        elif collection_count == 0:
+            log_chat_transcript(
+                "RAG_INJECTION", "🚨 ERROR: No documents were collected!"
+            )
+            return RagStatus.FAIL
 
     if data_refresh:
         # Refreshing unconditionally — no count check needed, and no
@@ -75,26 +137,34 @@ def run_rag_pipeline(args: dict, dataset: dict):
         )
         ChromaModel.delete()
 
-        chroma_model = ChromaModel()
-        _ingest(chroma_model)
-        return chroma_model
+        return _ingest(chroma_model)
 
     # Not refreshing — nothing gets deleted on this path, so it's always
     # safe to construct immediately and check the count before deciding
     # whether to do any ingestion work at all.
-    chroma_model = ChromaModel()
+    doc_handle = DocumentHandler(dataset.get("md_files"))
+    document_cnt = doc_handle.count_documents()
     collection_count = chroma_model.get_collection_count()
-    log_chat_transcript("COLLECTION_COUNT", collection_count)
 
-    if collection_count > 0:
-        log_chat_transcript(
-            "COLLECTION_COUNT",
-            f"✅ Semantic collection already has {collection_count} documents — skipping ingestion.",
+    rag_status = _verify(document_cnt, collection_count)
+    if rag_status == RagStatus.FAIL:
+        return _ingest(chroma_model, doc_handle, collection_count)
+
+    elif rag_status == RagStatus.PARTIAL:
+        collection_pct = collection_count / document_cnt
+        ans = input(
+            f"Your collection status is {rag_status} at {collection_pct}%. Do you want to ingest again? Y or N? _"
         )
-    else:
-        _ingest(chroma_model)
 
-    return chroma_model
+        if ans[:1].upper() == "Y":
+            log_chat_transcript(
+                "RAG_PIPELINE", "😊 You chose `Yes`.  Ingesting to begin..."
+            )
+            return _ingest(chroma_model, doc_handle, collection_count)
+        else:
+            log_chat_transcript(
+                "RAG_PIPELINE", "😦 You chose `No`.  Exiting RAG."
+            )
 
 
 def run_process_tickets_pipeline(
@@ -123,7 +193,7 @@ def run_process_tickets_pipeline(
             # print(f"row={row.Issue}")
             print(f"row={row}")
             log_chat_transcript(
-                "PROMPT_ASSEMBLY", f"Assembling prompt for index: {row.Index}"
+                "TICKET_PIPELINE", f"Assembling prompt for index: {row.Index}"
             )
 
             """
@@ -162,24 +232,31 @@ def run_process_tickets_pipeline(
             └─────────────────────────────────────────────────────────┘
             """
 
+            # Logs the exact XML/Text sent to the LLM
             start_time = start_timer()
             prompt = analyzer.build_prompt_by_company(row.Index, row)
             show_timer(start_time)
 
-            log_chat_transcript(
-                "PROMPT_BUILT", prompt
-            )  # Logs the exact XML/Text sent to the LLM
-
             # Break loop (due to no retrieved documents or any other error)
             if prompt == "":
+                log_chat_transcript(
+                    "TICKET_PIPELINE", "😵 Prompt is empty.  Breaking loop."
+                )
                 break
 
             """
-            Returns output.  Use three inputs and 5 outputs (status, product_area, response, justificiation, request_ type)
-            to create the output.csv row
+            Returns output.  Use three inputs and 5 outputs (
+                status,
+                product_area,
+                response,
+                justificiation,
+                request_ type
+                ) to create the output.csv row
             """
-            response = analyzer.support_agent_model.get_response(prompt)
-            log_chat_transcript("LLM_RESPONSE", response)
+            response = analyzer.support_agent_model.get_response(
+                prompt, row.Index
+            )
+            log_chat_transcript("TICKET_PIPELINE", f"Response: {response}.")
 
             if not response or hasattr(response, "error"):
                 print(
@@ -187,14 +264,17 @@ def run_process_tickets_pipeline(
                 )
                 break
 
-            log_chat_transcript("LLM_RESPONSE_TIME", get_time(start_time))
+            log_chat_transcript(
+                "TICKET_PIPELINE",
+                f"Model Response Time: {get_time(start_time)}",
+            )
             show_timer(start_time)
 
             time.sleep(PAUSE_TIMER)
             output_rows.append(response)
 
             log_chat_transcript(
-                "PROGRESS_BAR", get_progress_bar(row.Index, row_cnt)
+                "TICKET_PIPELINE", get_progress_bar(row.Index, row_cnt)
             )
             print(get_progress_bar(row.Index, row_cnt))
 

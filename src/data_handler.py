@@ -35,6 +35,7 @@ class DataHandler:
         self.output = None
         self.support_tickets = None
         self.md_files = {"claude": [], "hackerrank": [], "visa": []}
+        self.md_file_cnt = 0
         self._filepath = None
 
         # Load and clean support tickets
@@ -51,6 +52,11 @@ class DataHandler:
             self.md_files["claude"] = self._load_md_files(CLAUDE_DIR)
             self.md_files["hackerrank"] = self._load_md_files(HACKERRANK_DIR)
             self.md_files["visa"] = self._load_md_files(VISA_DIR)
+            self.md_file_cnt = (
+                len(self.md_files["claude"])
+                + len(self.md_files["hackerrank"])
+                + len(self.md_files["visa"])
+            )
             log_chat_transcript("MARKDOWN_FILES", self.md_files)
 
     def _load_data(self, use_sample: bool) -> None:
@@ -227,6 +233,9 @@ class DataHandler:
 
         print("\n# --- Data Dtypes --- #")
         print(self.support_tickets.dtypes)
+
+        print("\n# === MARKDOWN FILES === #")
+        print(f"File Count: {self.md_file_cnt}")
 
     def save_data(self, csv_data) -> None:
         """

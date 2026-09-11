@@ -3,9 +3,10 @@
 # |                                TICKET ANALYZER                                 |
 # +---------------------------------------------------------------------------+
 
-# Vendor Libraries
+# Python Libraries
 from typing import Union
 
+# Vendor Libraries
 import pandas as pd
 
 # Local Libraries
@@ -24,9 +25,9 @@ from src.utils import (
 
 class TicketAnalyzer:
     def __init__(self, dataset: dict) -> None:
+        self._agent = None
         self._chroma_model = dataset.get("chroma_model")
         self._support_agent_model = dataset.get("model")
-        self._agent = None
 
     def build_prompt_by_company(
         self,
@@ -36,45 +37,45 @@ class TicketAnalyzer:
 
         # Get company
         self._agent = self._get_agent(row_index, ticket_df)
-        log_chat_transcript("AGENT_LOADED", self._agent.title)
+        log_chat_transcript(
+            "TICKET_ANALYSIS", f"Agent Loaded: {self._agent.title}."
+        )
 
-        # Prioritieze the input data:
-        # Company, Issue, Subject
-        # self._agent.issue = None
-
-        # Classify the issue
-        # identify req type, classify issue into a product area
-        # assess urgency and risk
+        # Classify the issue then identify req type, classify issue into a
+        # product area assess urgency and risk.
         self._agent.classify()
 
-        # decide whether to replay or escelate
-
         # Doc retrieval (for dataset)
-        # get relevant documents
         start_time = start_timer()
         documents = self._agent.retrieve_relevant_documents()
+        show_timer(start_time)
 
         if len(documents) == 0:
-            log_chat_transcript("NO_RETRIEVED_DOCUMENTS", len(documents))
+            message = "🚨 ERROR: No retrieved documents found."
+            log_chat_transcript(
+                message,
+            )
             return ""
+        else:
+            message = f"Retreived Document Count: {len(documents)}."
+            log_chat_transcript(
+                "TICKET_ANALYSIS",
+                message,
+            )
 
         # Run groundness on the retrieved documents
+        start_time = start_timer()
         grounding_results = self._agent.groundness(documents)
         show_timer(start_time)
 
-        # model analysis
-        # generate a safe, grounded response
+        self._agent.evaluate_groundness(grounding_results)
 
-        # get prompt
-
-        # Assuming all the values are the most accurate from the retrieved documents
-        # build a final prompt for final analysis.
-
-        exported_dataset = self._agent.export(prettify_cols(ticket_df))
-        print(f"exported_dataset = {exported_dataset}")
+        # Assuming all the values are the most accurate from the retrieved
+        # documents build a final prompt for final analysis.
+        agent_dataset = self._agent.export(prettify_cols(ticket_df))
 
         # Load Prompt Builder to get the prompt
-        dataset = exported_dataset | {
+        dataset = agent_dataset | {
             "document_chunks": documents,
             "row_index": row_index,
         }
@@ -86,14 +87,13 @@ class TicketAnalyzer:
         self, row_index: int, ticket_df: pd.DataFrame
     ) -> Union[SupportAgent, ClaudeAgent, HackerrankAgent, VisaAgent]:
         agent_params = {
-            "row_index": row_index,
-            "ticket_df": ticket_df,
             "chroma_model": self._chroma_model,
             "support_agent_model": self._support_agent_model,
+            "row_index": row_index,
+            "ticket_df": ticket_df,
         }
 
-        # company = SupportAgent.resolve_company(ticket_df)
-
+        # Define company
         company = ticket_df.Company.lower()
 
         if not company:
@@ -108,8 +108,5 @@ class TicketAnalyzer:
 
         if company not in agent_mapping:
             raise ValueError(f"🚨 Unsupported company: '{company}'")
-
-        # self.support_agent_model.title = company.title() + " Agent Model"
-        # agent_params["support_agent_model"] = self.support_agent_model
 
         return agent_mapping[company](**agent_params)

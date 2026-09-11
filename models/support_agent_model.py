@@ -15,6 +15,7 @@ from openai import InternalServerError, OpenAI, RateLimitError
 # Local Libraries
 from src.constants import (
     LLAMA_MODEL,
+    LLAMA_SAFE,
     LLAMA_UNSAFE_CODES,
     MAX_TOKENS,
     MODEL_API_KEY,
@@ -49,7 +50,6 @@ class SupportAgentModel:
         ]
 
         self.title = "Support Agent Model"
-        self._log = log
         show_banner(self.title, subtitles)
 
         self._client = self._load_model()
@@ -69,25 +69,38 @@ class SupportAgentModel:
         attempt = 0
         while attempt < RATE_LIMIT_RETRIES:
             try:
-                response = self._client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": SYSTEM_INSTR_PROMPT.format(
-                                agent_title=self.title
-                            ),
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    temperature=0.0,
-                    max_completion_tokens=MAX_TOKENS,
-                    response_format={"type": "json_object"},
-                    top_p=1.0,
-                    timeout=90.0,
+                # Check if it's safe first
+                llama_response = self.filter_input_with_llama_guard(prompt)
+
+                log_chat_transcript(
+                    "SUPPORT_AGENT_MODEL", f"Llama Response: {llama_response}."
                 )
 
-                return self._format_response(self._filter_response(response))
+                if llama_response in LLAMA_SAFE:
+                    response = self._client.chat.completions.create(
+                        model=MODEL_NAME,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": SYSTEM_INSTR_PROMPT.format(
+                                    agent_title=self.title
+                                ),
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        temperature=0.0,
+                        max_completion_tokens=MAX_TOKENS,
+                        response_format={"type": "json_object"},
+                        top_p=1.0,
+                        timeout=90.0,
+                    )
+
+                    return self._format_response(
+                        self._filter_response(response)
+                    )
+                else:
+                    print("LLAMA UNSAFE FLAG.  Returning empty string!")
+                    return ""
 
             except InternalServerError as e:
                 print(
@@ -119,7 +132,9 @@ class SupportAgentModel:
                 print(f"\n🚨 {error_message} 🚨")
 
                 delay_time = self._parse_delay_time(error_message)
-                log_chat_transcript("RATE_LIMIT_ERROR", error_message)
+                log_chat_transcript(
+                    "SUPPORT_AGENT_MODEL", f"Rate Limit Error: {error_message}"
+                )
                 print(f"\n⏸️  Pausing for {delay_time} seconds ...")
 
                 time.sleep(delay_time)
@@ -179,7 +194,9 @@ class SupportAgentModel:
             return {}
 
         except Exception as e:
-            log_chat_transcript("FILTER_RESPONSE_ERROR", e)
+            log_chat_transcript(
+                "SUPPORT_AGENT_MODEL", f"Filter Response Error: {e}"
+            )
             return {}
 
     def _format_response(self, response: dict) -> dict:
@@ -202,12 +219,11 @@ class SupportAgentModel:
 
             result = llama_response.choices[0].message.content.strip()
 
-            if self._log:
-                print("\nDEBUG --- LLAMA RESPONSE --- ")
-                print(f"{llama_response}")
-                print("\n# --- 🖊️  Open Guard result 🖊️ --- #")
-                print(result)
-                print("# --- 🖊️  Close Guard result 🖊️ --- #\n")
+            print("\nDEBUG --- LLAMA RESPONSE --- ")
+            print(f"{llama_response}")
+            print("\n# --- 🖊️  Open Guard result 🖊️ --- #")
+            print(result)
+            print("# --- 🖊️  Close Guard result 🖊️ --- #\n")
 
             return self._apply_guard(result)
 
