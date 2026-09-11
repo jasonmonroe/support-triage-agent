@@ -30,17 +30,24 @@ class DocumentHandler:
 
     def _create(self, content: str, metadata: dict):
 
-        if "doc_type" not in metadata:
-            metadata["doc_type"] = "semantic_chunk"
+        # if "doc_type" not in metadata:
+        #    metadata["doc_type"] = "semantic_chunk"
 
         return Document(
             id=metadata.get("id"),
             type="Document",
-            page_content=content,
+            page_content=content.strip(),
             metadata=metadata,
         )
 
     def process(self) -> list:
+
+        if len(self._md_files) == 0:
+            log_chat_transcript(
+                "DOCUMENT_PROCESSING", "⚠️ No markdown files present."
+            )
+            return []
+
         meta = MetadataExtractor()
 
         # Convert raw text into Langchain document objects

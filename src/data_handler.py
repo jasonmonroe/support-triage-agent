@@ -45,10 +45,6 @@ class DataHandler:
 
         self._clean_data()
 
-        import sys
-
-        sys.exit(0)
-
         # Load data files
         if args.get("rag"):
             # self._compact_documents(DATA_DIR)

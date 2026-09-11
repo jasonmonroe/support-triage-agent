@@ -4,6 +4,7 @@
 # +---------------------------------------------------------------------------+
 #  Python Libraries
 import inspect
+import os
 import random
 import sys
 import time
@@ -11,7 +12,7 @@ import time
 # Local Libraries
 from models.chroma_model import ChromaModel
 from models.support_agent_model import SupportAgentModel
-from src.constants import PAUSE_TIMER
+from src.constants import CHROMA_DB_DIR, PAUSE_TIMER
 from src.document_handler import DocumentHandler
 from src.ticket_analyzer import TicketAnalyzer
 from src.utils import (
@@ -20,6 +21,7 @@ from src.utils import (
     log_chat_transcript,
     show_timer,
     start_timer,
+    sum_bytes_in_dir,
 )
 
 
@@ -46,40 +48,51 @@ def run_rag_pipeline(args: dict, dataset: dict):
     """
 
     data_refresh = args.get("refresh")
-    doc_handle = DocumentHandler(dataset.get("md_files"))
 
-    # Instantiate LLM Agent Model
+    def _ingest(chroma_model: ChromaModel) -> None:
+        doc_handle = DocumentHandler(dataset.get("md_files"))
+        document_chunks = doc_handle.process()
+        log_chat_transcript("🗄️ DOCUMENT_COUNT", doc_handle.count_documents())
+        log_chat_transcript("🗄️ CHUNK_COUNT", doc_handle.count_chunks())
+
+        chroma_model.add_vector_documents(document_chunks)
+
+        chroma_db_dir_size = sum_bytes_in_dir(os.path.abspath(CHROMA_DB_DIR))
+        log_chat_transcript(
+            "CHROMA_DB_DIR_SIZE",
+            f"Chroma DB filesize is {chroma_db_dir_size}.",
+        )
+
+        doc_handle.show(random.randint(0, doc_handle.count_documents()))
+
+    if data_refresh:
+        # Refreshing unconditionally — no count check needed, and no
+        # ChromaModel instance needed yet. Wipe first so the client we
+        # build next never opens a connection that a later delete could
+        # invalidate.
+        log_chat_transcript(
+            "DATA_REFRESH", "🗑️ Wiping database before ingesting..."
+        )
+        ChromaModel.delete()
+
+        chroma_model = ChromaModel()
+        _ingest(chroma_model)
+        return chroma_model
+
+    # Not refreshing — nothing gets deleted on this path, so it's always
+    # safe to construct immediately and check the count before deciding
+    # whether to do any ingestion work at all.
     chroma_model = ChromaModel()
     collection_count = chroma_model.get_collection_count()
     log_chat_transcript("COLLECTION_COUNT", collection_count)
 
-    if collection_count > 0 and not data_refresh:
+    if collection_count > 0:
         log_chat_transcript(
-            "collection_count",
+            "COLLECTION_COUNT",
             f"✅ Semantic collection already has {collection_count} documents — skipping ingestion.",
         )
     else:
-        # Process markdown files into enriched chunks
-        if data_refresh:
-            log_chat_transcript(
-                "DATA_REFRESH", "🗑️ Resetting database and ingesting..."
-            )
-            chroma_model.delete_collection()
-            chroma_model.delete()
-
-        # Process document chunks and store chunks into single target Chroma Collection.
-        document_chunks = doc_handle.process()
-        log_chat_transcript(
-            "🗄️ DOCUMENT_COUNT", doc_handle.count_documents()
-        )  # 774
-        log_chat_transcript(
-            "🗄️ CHUNK_COUNT", doc_handle.count_chunks()
-        )  # 11450
-        chroma_model.add_vector_documents(document_chunks)
-
-    # Show documents
-    rand_file_order = random.randint(0, collection_count)
-    doc_handle.show(rand_file_order)
+        _ingest(chroma_model)
 
     return chroma_model
 
@@ -156,7 +169,10 @@ def run_process_tickets_pipeline(
             log_chat_transcript(
                 "PROMPT_BUILT", prompt
             )  # Logs the exact XML/Text sent to the LLM
-            sys.exit(0)
+
+            # Break loop (due to no retrieved documents or any other error)
+            if prompt == "":
+                break
 
             """
             Returns output.  Use three inputs and 5 outputs (status, product_area, response, justificiation, request_ type)
@@ -181,5 +197,8 @@ def run_process_tickets_pipeline(
                 "PROGRESS_BAR", get_progress_bar(row.Index, row_cnt)
             )
             print(get_progress_bar(row.Index, row_cnt))
+
+    print("Exiting program...")
+    sys.exit(0)
 
     return output_rows

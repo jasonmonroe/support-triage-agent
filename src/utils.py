@@ -10,6 +10,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 
 import pandas as pd
 
@@ -276,3 +277,22 @@ def match_company_by_keywords(text: str) -> str | None:
         if any(keyword in text for keyword in keywords):
             return company
     return None
+
+
+def sum_bytes_in_dir(dir_path: str) -> int:
+    """
+    Sum the sizes (in bytes) of all regular files in dir_path,
+    including subdirectories.
+    """
+    total = 0
+    root = Path(dir_path)
+
+    for path in root.rglob("*"):
+        if path.is_file():
+            try:
+                total += path.stat().st_size
+            except OSError:
+                # Skip files we can't stat (permissions, etc.)
+                continue
+
+    return total

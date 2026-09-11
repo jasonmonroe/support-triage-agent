@@ -4,9 +4,12 @@
 # +---------------------------------------------------------------------------+
 
 
+from typing import List
+
+from langchain_core.documents import Document
+
 # Local Libraries
 from agents.support_agent import SupportAgent
-from src.utils import log_chat_transcript
 
 
 class HackerrankAgent(SupportAgent):
@@ -20,61 +23,39 @@ class HackerrankAgent(SupportAgent):
         self.title = "HackerRank Agent"
         self.company = "Hackerrank"
         self._title_agent_model(f"{self.title} Model")
-        print(f"Model Title: {self._model.title}")
 
-    def ground(self, documents: list):
-        log_chat_transcript(
-            "GROUNDING_DOCUMENTS", f"Grounding {len(documents)} documents."
-        )
-        document_content = ""
-        for document in documents:
-            document_content += document.page_content + "\n-----------\n"
+    def _query(self, query_str: str) -> List[Document]:
+        if not self._chroma_model:
+            raise ValueError("🚨 Chroma Model needs to be defined!")
 
-        prompt = f"""
-        Evaluate the accuracy of the proposed response against the provided internal documentation to prevent model hallucinations and ensure factual grounding.
-        The context should be geared toward {self.company}.  A coding development website to test software engineering concepts.
+        return self._chroma_model.query(self.company, query_str)
 
-        ## Context Documents
-        {document_content.strip()}
-
-        ## Draft Response to Evaluate
-        {self.response.strip()}
-
-        ## Evaluation Tasks:
-        1. Verify if the Draft Response is fully supported by the Context Documents.
-        2. If the Draft Response is accurate and complete, retain it.
-        3. If the Draft Response contains factual errors, missing details, or hallucinations, rewrite it so it is strictly grounded in the Context Documents.
-        4. Assess the risk level of the support issue based on its severity, security implications, or potential business impact.
-
-        Assign one of the following risk levels: `low`, `medium`, `high`, `critical`.
-
-        ### Required Output Format:
-        Return ONLY a valid JSON object wrapped in a markdown code block (```json ... ```):
-        {{
-        "risk_level": "<low | medium | high | critical>",
-        "response": "<final corrected or original user-facing response>"
-        }}
-        """.strip()
-
-        grounded_response = self._model.get_response(prompt, self.row_index)
-        print(f"ground(): response={grounded_response}")
-
-        if not grounded_response or hasattr(grounded_response, "error"):
-            return
-
-        # Compare against ticket response
-        self._risk_level = grounded_response["risk_level"] or None
-        self.response = grounded_response["response"] or None
-
-    # @TODO - defunct
-    def __assess_risk(self, request: str) -> str:
+    def _verify_grounded_response(self, draft: dict, documents: list) -> bool:
         """
-        Visa is about finance, financial documents
+        Overrides SupportAgent._verify_grounded_response() to add a
+        business-rule check on top of the base citation-verification
+        logic. HackerRank support tickets can ask for something no KB
+        article should ever legitimately grant — e.g. "the recruiter
+        rejected me, increase my score" or otherwise re-grade/bypass the
+        standard evaluation process. That's not a factual-grounding
+        failure for citations to catch; a response could cite a real
+        document perfectly and still be wrong to send, because the
+        underlying request is a policy line, not a question with a
+        correct documented answer.
+
+        Should call super()._verify_grounded_response(draft, documents)
+        first for the normal citation check, then additionally scan
+        `draft["response"]` for score/grading/re-evaluation promises and
+        fail verification (return False) if found, regardless of what
+        was cited.
+
+        Input:
+            draft (dict): output of _draft_filtered_response().
+            documents (list): the filtered documents the draft was
+                supposedly grounded against.
+
+        Output:
+            bool — True only if both the base citation check passes AND
+            no score/grading policy violation is present in the response.
         """
-
-        grounding_prompt = """
-
-        """
-
-        self._risk_level = None
-        return self._risk_level
+        pass

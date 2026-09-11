@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import os
-import shutil
-import time
-from typing import List
-
 # models/chroma_model.py
 # +---------------------------------------------------------------------------+
 # |                            CHROMA DB MODEL                                |
 # +---------------------------------------------------------------------------+
 # Python Libraries
+import os
+import shutil
+import time
+from typing import List
+
 import chromadb
 
 # Vector Libraries
@@ -18,6 +18,7 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_google_genai._common import GoogleGenerativeAIError
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # Local Libraries
 from src.constants import (
@@ -33,7 +34,7 @@ from src.constants import (
     RATE_LIMIT_PAUSE_TIMER,
     RATE_LIMIT_RETRIES,
 )
-from src.utils import log_chat_transcript
+from src.utils import log_chat_transcript, sum_bytes_in_dir
 
 
 class ChromaModel:
@@ -50,8 +51,6 @@ class ChromaModel:
         )
         self.collection_name = CHROMA_COLL_NAME
         self.embedding_model = MODEL_EMBEDDING
-        print(MODEL_EMBEDDING)
-
         self.retriever = None
         self.vector_storage = self._get_vector_storage()
 
@@ -64,7 +63,8 @@ class ChromaModel:
         if company:
             params["filter"] = {"company": company.lower()}
 
-        return self.vector_storage.as_retriever(
+        return self.vector_storage.similarity_search_with_score(
+            # as_retriever(
             search_type="similarity",
             search_kwargs=params,
         )
@@ -78,22 +78,25 @@ class ChromaModel:
 
         return Chroma(
             client=self._client,
-            embedding_function=self._get_embeddings(),
+            embedding_function=self._get_hf_embeddings(),
             collection_name=self.collection_name,
         )
 
     def _get_embeddings(self) -> GoogleGenerativeAIEmbeddings:
-
-        # embeddings = OpenAIEmbeddings(
-        # model=self.embedding_model,  # e.g. "gemini-embedding-001"
-        # openai_api_key=MODEL_API_KEY,
-        # openai_api_base=MODEL_API_URL,  # "https://generativelanguage.googleapis.com/v1beta/openai/"
-        # check_embedding_ctx_length=False,  # Disables tiktoken token counting
-        # )
-
         return GoogleGenerativeAIEmbeddings(
             model=f"models/{self.embedding_model}",  # e.g., "models/text-embedding-004" or "models/gemini-embedding-001"
             google_api_key=MODEL_API_KEY,
+        )
+
+    def _get_hf_embeddings(self) -> HuggingFaceEmbeddings:
+        """
+        Instantiates local HuggingFace embedding provider.
+        Runs locally on CPU/GPU without needing external embedding API keys.
+        """
+        return HuggingFaceEmbeddings(
+            model_name=self.embedding_model,
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True},
         )
 
     def add_vector_documents(
@@ -109,7 +112,8 @@ class ChromaModel:
             f"\n# --- ➕ Adding {document_cnt} chunked vector documents with a batch size of {batch_size}. ➕ --- #"
         )
 
-        self.vector_storage.reset_collection()
+        # 11,450 chunks, 790+ md files
+        # self.vector_storage.reset_collection()
 
         total_batches = (document_cnt + batch_size - 1) // batch_size
         for i in range(0, document_cnt, batch_size):
@@ -205,8 +209,12 @@ class ChromaModel:
             )
             return new_timer
 
-    def get_documents(self, query_str: str) -> list:
-        """Queries the vector storage collection directly using similarity search."""
+    def query_all(self, query_str: str) -> list:
+        """
+        Queries the vector storage collection directly using similarity search.
+        No metadata filter is applied here; it searches over the entire collection.
+        """
+
         return self.vector_storage.similarity_search(
             query=query_str,
             k=CHROMA_RESULT_CNT,
@@ -225,35 +233,42 @@ class ChromaModel:
         retriever = self.get_retriever(company)
         return retriever.invoke(text)
 
-    def delete_collection(self):
-        log_chat_transcript(
-            "DELETE_COLLECTION", "🗑️ Deleting vector collection."
-        )
-        self.vector_storage.reset_collection()
-
-    def delete(self) -> None:
-        """Purges the target database directory (db/) to reset ChromaDB states."""
+    @staticmethod
+    def delete() -> None:
+        """
+        Purges the target database directory (db/) to reset ChromaDB
+        states. Static because it's pure filesystem work — it never
+        touches a client/collection — which lets callers wipe the
+        directory *before* any ChromaModel instance (and its live
+        connection) exists, avoiding a stale connection pointed at
+        files that no longer exist.
+        """
         target_db_dir = os.path.abspath(CHROMA_DB_DIR)
 
         log_chat_transcript(
-            "DELETE CHROMA_DB DIR",
+            "DELETE_CHROMA_DB_DIR",
             f"🗑️ Wiping Database directory: {target_db_dir}...",
         )
 
         if not os.path.exists(target_db_dir):
             log_chat_transcript(
-                "DELETE CHROMA_DB DIR",
+                "DELETE_CHROMA_DB_DIR",
                 f"⚠️ Warning: Directory {target_db_dir} does not exist. Creating a fresh one now...",
             )
             os.makedirs(target_db_dir, exist_ok=True)
             os.chmod(target_db_dir, DOCUMENT_DIR_PERM)
             return None
 
+        dir_size = sum_bytes_in_dir(target_db_dir)
+        log_chat_transcript(
+            "CHROMA_DB_SIZE", f"{target_db_dir} directory is {dir_size}."
+        )
+
         for filename in os.listdir(target_db_dir):
             filepath = os.path.join(target_db_dir, filename)
             try:
                 log_chat_transcript(
-                    "DELETE CHROMA_DB DIR",
+                    "DELETE_CHROMA_DB_DIR",
                     f"Purging database artifact: {filepath}...",
                 )
 
@@ -264,17 +279,17 @@ class ChromaModel:
 
             except FileNotFoundError as e:
                 log_chat_transcript(
-                    "DELETE CHROMA_DB DIR",
+                    "DELETE_CHROMA_DB_DIR",
                     f"🚨 Failed to wipe element path target {filepath}. Exception: {e}",
                 )
 
         if next(os.scandir(target_db_dir), None) is None:
             os.chmod(target_db_dir, DOCUMENT_DIR_PERM)
             log_chat_transcript(
-                "DELETE CHROMA_DB DIR",
+                "DELETE_CHROMA_DB_DIR",
                 f"📁 Database directory {CHROMA_DB_DIR} is empty and ready for use.",
             )
             log_chat_transcript(
-                "DELETE CHROMA_DB DIR",
+                "DELETE_CHROMA_DB_DIR",
                 f"🖊️ {CHROMA_DB_DIR} privileges are set to {DOCUMENT_DIR_PERM}.\n",
             )

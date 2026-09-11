@@ -8,13 +8,14 @@ import xmltodict
 
 # Local Libraries
 from src.constants import USER_PROMPT_TEMPLATE
+from utils import log_chat_transcript
 
 
 class PromptBuilder:
     def __init__(self, dataset: dict):
 
         self._ticket_dict = {
-            "@index": dataset.get("row_index"),
+            "@row_index": dataset.get("row_index"),
         }
         self.prompt = self._build(dataset) or ""
 
@@ -35,8 +36,11 @@ class PromptBuilder:
         """
 
         for key, value in dataset.items():
-            if key not in ["document_chunk", "index"] and value:
-                self._ticket_dict[key] = {f"{key}", value}
+            if key not in ["document_chunks", "row_index"] and value:
+                print(f"key -> {key}")
+                print(f"value -> {value[:1024]}")
+                self._ticket_dict[key] = value
+                print(f"self._ticket[{key}] has a value...")
 
             # print(f"key => {key}")
 
@@ -47,6 +51,7 @@ class PromptBuilder:
         ticket_data = {"ticket": self._ticket_dict}
 
         # Build xml off document chunks
+        # document_chunks = dataset.get("document_chunks")
         retrieved_context_data = {
             "retrieved_context": self._retrieved_context(
                 dataset.get("document_chunks")
@@ -60,43 +65,20 @@ class PromptBuilder:
             ),
         ).strip()
 
-    def _convert_to_xml(self, ticket_data) -> str:
-        return xmltodict.unparse(ticket_data, pretty=True, full_document=False)
+    def _convert_to_xml(self, dict_data: dict) -> str:
+        try:
+            return xmltodict.unparse(
+                dict_data, pretty=True, full_document=False
+            )
+        except Exception as e:
+            log_chat_transcript("XML_CONVERSION_ERROR", e)
+            return ""
 
-    """
-    def _company(self, name: str | None) -> dict:
-        return {"company": name}
+    def _make_ticket_dict(self) -> dict:
+        pass
 
-    def _issue(self, name: str) -> dict:
-        return {
-            "issue": name,
-        }
-
-    def _subject(self, name: str) -> dict:
-        return {
-            "subject": name,
-        }
-
-    def _response(self, name: str) -> dict:
-        return {
-            "response": name,
-        }
-
-    def _product_area(self, name: str) -> dict:
-        return {
-            "product_area": name,
-        }
-
-    def _status(self, name: str) -> dict:
-        return {
-            "status": name,
-        }
-
-    def _request_type(self, name: str) -> dict:
-        return {
-            "request_type": name,
-        }
-    """
+    def _make_retrieved_context_dict(self) -> dict:
+        pass
 
     def _retrieved_context(self, document_chunks: list) -> dict:
         """
@@ -106,6 +88,9 @@ class PromptBuilder:
             <document source="{filename}">{chunk_text}</document>
         </retrieved_context>
         """
+
+        if len(document_chunks) == 0:
+            return {}
 
         return {
             # Passing a list to 'document' creates multiple <document> tags
