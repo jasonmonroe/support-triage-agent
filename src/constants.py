@@ -55,14 +55,16 @@ CHAT_TRANSCRIPT_FILE = os.path.join("", "log.txt")
 # texts/request) so one outer batch maps to exactly one embed_content
 # request instead of bursting several requests back-to-back internally.
 DB_BATCH_SIZE = 100
+HF_BATCH_SIZE = 128
 # Pause between embedding batches — Gemini free tier is 100 req/min
 
 DOCUMENT_CHUNK_SIZE = 800
 DOCUMENT_CHUNK_OVERLAP = 200
 DOCUMENT_DIR_PERM = 0o755
-DOCUMENT_CONTENT_DESC = "Text Semantic Chunks of Company Documentation (markdown files) pertaining to company policy."
 
-RESP_EVAL_THRESHOLD = 0.85
+RESP_EVAL_THRESHOLD = 0.85  # Response relevance threshold
+RESP_PRECISION_THRESHOLD = 0.80
+MIN_SEARCH_SCORE = 0.0
 
 # Data Files
 DATA_DIR = "data/"

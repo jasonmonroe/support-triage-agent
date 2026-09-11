@@ -26,7 +26,7 @@ class ClaudeAgent(SupportAgent):
         if not self._chroma_model:
             raise ValueError("🚨 Chroma Model needs to be defined!")
 
-        return self._chroma_model.query(self.company, query_str)
+        return self._chroma_model.query(query_str, self.company)
 
     def _draft_filtered_response(self, documents: list) -> dict:
         """

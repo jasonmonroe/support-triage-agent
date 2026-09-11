@@ -21,42 +21,14 @@ class PromptBuilder:
 
     def _build(self, dataset: dict) -> str:
         print("_build()")
-        """
-        for key, value in dataset.items():
-            if key == "document_chunk":
-                continue
 
-            method_name = f"_{key.lstrip('_')}"
-            method = getattr(self, method_name, None)
-            print(f"method_name={method_name}")
-            # Added 'and' operator
-            # Changed 'not value' to 'value' so it only unpacks if there is data
-            if value and callable(method):
-                self._ticket_dict.update(method(value))
-        """
+        # Build ticket data to convert to XML
+        ticket_data = self._get_ticket_data(dataset)
 
-        for key, value in dataset.items():
-            if key not in ["document_chunks", "row_index"] and value:
-                print(f"key -> {key}")
-                print(f"value -> {value[:1024]}")
-                self._ticket_dict[key] = value
-                print(f"self._ticket[{key}] has a value...")
-
-            # print(f"key => {key}")
-
-        # import sys
-
-        # sys.exit(0)
-
-        ticket_data = {"ticket": self._ticket_dict}
-
-        # Build xml off document chunks
-        # document_chunks = dataset.get("document_chunks")
-        retrieved_context_data = {
-            "retrieved_context": self._retrieved_context(
-                dataset.get("document_chunks")
-            )
-        }
+        # Build retreived context data to convert to XML
+        retrieved_context_data = self._get_retrieved_context_data(
+            dataset.get("document_chunks")
+        )
 
         return USER_PROMPT_TEMPLATE.format(
             support_ticket_data_xml=self._convert_to_xml(ticket_data),
@@ -72,15 +44,22 @@ class PromptBuilder:
             )
         except Exception as e:
             log_chat_transcript("XML_CONVERSION_ERROR", e)
+
+            # Return an empty string if dict_data is empty or invalid.
             return ""
 
-    def _make_ticket_dict(self) -> dict:
-        pass
+    def _get_ticket_data(self, dataset: dict) -> dict:
+        ticket_dict = {}
+        for key, value in dataset.items():
+            if key not in ["document_chunks", "row_index"] and value:
+                print(f"key -> {key}")
+                print(f"value -> {value[:1024]}")
+                ticket_dict[key] = value
+                print(f"ticket_dict[{key}] has a value...")
 
-    def _make_retrieved_context_dict(self) -> dict:
-        pass
+        return {"ticket": ticket_dict}
 
-    def _retrieved_context(self, document_chunks: list) -> dict:
+    def _get_retrieved_context_data(self, document_chunks: list) -> dict:
         """
         Example:
         <retrieved_context>
@@ -92,7 +71,7 @@ class PromptBuilder:
         if len(document_chunks) == 0:
             return {}
 
-        return {
+        documents_dict = {
             # Passing a list to 'document' creates multiple <document> tags
             "document": [
                 {
@@ -106,3 +85,5 @@ class PromptBuilder:
                 for document in document_chunks
             ]
         }
+
+        return {"retrieved_context": documents_dict}

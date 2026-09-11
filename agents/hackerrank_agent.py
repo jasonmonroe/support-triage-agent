@@ -58,4 +58,11 @@ class HackerrankAgent(SupportAgent):
             bool — True only if both the base citation check passes AND
             no score/grading policy violation is present in the response.
         """
-        pass
+        is_verified = super()._verify_grounded_response(draft, documents)
+
+        if is_verified:
+            pass
+        else:
+            pass
+
+        return is_verified

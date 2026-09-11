@@ -59,7 +59,7 @@ class TicketAnalyzer:
             return ""
 
         # Run groundness on the retrieved documents
-        self._agent.groundness(documents)
+        grounding_results = self._agent.groundness(documents)
         show_timer(start_time)
 
         # model analysis

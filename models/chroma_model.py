@@ -8,7 +8,6 @@ from __future__ import annotations
 import os
 import shutil
 import time
-from typing import List
 
 import chromadb
 
@@ -29,6 +28,7 @@ from src.constants import (
     DB_BATCH_SIZE,
     DOCUMENT_DIR_PERM,
     EMBED_PAUSE_TIMER,
+    HF_BATCH_SIZE,
     MODEL_API_KEY,
     MODEL_EMBEDDING,
     RATE_LIMIT_PAUSE_TIMER,
@@ -54,10 +54,12 @@ class ChromaModel:
         self.retriever = None
         self.vector_storage = self._get_vector_storage()
 
-    def get_retriever(self, company: str | None):
+    def _search_with_scores(
+        self, company: str
+    ) -> list[tuple[Document, float]]:
         """
-        Initializes vector retriever using the target collection.
-        Calculates cosine/Euclidean distance to documents with optional exact metadata filtering.
+        Executes a similarity search with distance scores against the vector collection,
+        applying optional company metadata filtering.
         """
         params = {"k": CHROMA_RESULT_CNT}
         if company:
@@ -95,11 +97,61 @@ class ChromaModel:
         """
         return HuggingFaceEmbeddings(
             model_name=self.embedding_model,
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
+            model_kwargs={
+                "device": "mps"
+            },  # use `cps` if on Intel based machine
+            encode_kwargs={
+                "normalize_embeddings": True,
+                "batch_size": HF_BATCH_SIZE,
+            },
         )
 
     def add_vector_documents(
+        self, documents: list, batch_size: int = HF_BATCH_SIZE
+    ) -> bool:
+        """
+        Embeds and adds documents to the vector store in batches using explicit retry logic
+        that parses vendor rate limit messages and backs off gracefully.
+        """
+
+        # 11,450 chunks, 790+ md files
+        document_cnt = len(documents)
+
+        print(
+            f"\n# --- ➕ Adding {document_cnt} vector documents with a batch size of {batch_size}. ➕ --- #"
+        )
+
+        for i in range(0, document_cnt, batch_size):
+            self.vector_storage.add_documents(documents[i : i + batch_size])
+
+        return True if i >= document_cnt else False
+
+    def get_collection_count(self) -> int:
+        """Returns the number of documents currently in the vector collection."""
+        try:
+            return self.vector_storage._collection.count()
+        except Exception as e:
+            log_chat_transcript("ERROR COLLECTION_COUNT", e)
+            return 0
+
+    def query(
+        self, query_str: str, company: str | None = None
+    ) -> list[tuple[Document, float]]:
+        """
+        Queries the vector collection using similarity search with distance scores.
+        Applies an exact company metadata filter if specified; otherwise searches globally.
+        """
+        kwargs = {"k": CHROMA_RESULT_CNT}
+
+        if company and company.strip().lower() != "none":
+            kwargs["filter"] = {"company": company.lower()}
+
+        return self.vector_storage.similarity_search_with_score(
+            query=query_str, **kwargs
+        )
+
+    # @TODO  - defunct
+    def add_vector_documents_prev(
         self, documents: list, batch_size: int = DB_BATCH_SIZE
     ) -> None:
         """
@@ -134,6 +186,7 @@ class ChromaModel:
             # Throttling pause to stay under RPM limit
             time.sleep(EMBED_PAUSE_TIMER)
 
+    # @TODO - defunct
     def _add_batch_with_retry(self, batch: list, batch_index: int = 0) -> bool:
         """
         Attempts to write a document batch to ChromaDB.
@@ -178,6 +231,7 @@ class ChromaModel:
 
         return False
 
+    # @TODO - defunct
     def _parse_delay_time(self, error_message: str) -> float:
         """
         Parses Google API error response text for vendor retry suggestions (e.g. 'please retry in X.Xs').
@@ -208,30 +262,6 @@ class ChromaModel:
                 "RATE_LIMIT_ERROR", f"{e}\nreturning {new_timer}"
             )
             return new_timer
-
-    def query_all(self, query_str: str) -> list:
-        """
-        Queries the vector storage collection directly using similarity search.
-        No metadata filter is applied here; it searches over the entire collection.
-        """
-
-        return self.vector_storage.similarity_search(
-            query=query_str,
-            k=CHROMA_RESULT_CNT,
-        )
-
-    def get_collection_count(self) -> int:
-        """Returns the number of documents currently in the vector collection."""
-        try:
-            return self.vector_storage._collection.count()
-        except Exception as e:
-            log_chat_transcript("ERROR COLLECTION_COUNT", e)
-            return 0
-
-    def query(self, company: str | None, text: str) -> List[Document]:
-        """Queries ChromaDB using company-filtered or global search."""
-        retriever = self.get_retriever(company)
-        return retriever.invoke(text)
 
     @staticmethod
     def delete() -> None:

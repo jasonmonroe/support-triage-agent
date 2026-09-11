@@ -198,7 +198,7 @@ def run_process_tickets_pipeline(
             )
             print(get_progress_bar(row.Index, row_cnt))
 
-    print("Exiting program...")
+    print("sys.exit(0) Exiting program...")
     sys.exit(0)
 
     return output_rows
