@@ -54,7 +54,7 @@ from src.utils import (
 )
 
 
-def run_main_pipeline(args: dict):
+def run_main_pipeline(args: dict) -> bool:
     print(
         f"🏃 Runnning {inspect.currentframe().f_code.co_name.title().replace('_', ' ')}"
     )
@@ -72,12 +72,25 @@ def run_main_pipeline(args: dict):
         # Check if rag was successful
         if not rag_status:
             log_chat_transcript("RAG_STATUS", "⚠️ No documents were ingested.")
+            return False
+    else:
+        collection_count = chroma_model.get_collection_count()
+        log_chat_transcript(
+            "MAIN_PIPELINE",
+            f"🚩 RAG injection flag NOT detected.  Collection count: {collection_count}.",
+        )
+
+        if collection_count == 0:
+            log_chat_transcript(
+                "MAIN_PIPELINE",
+                "🚨 ERROR: There are no collections. Run again with the --rag flag. 🚨",
+            )
+            return False
 
     # Process the tickets 🚩
     output_rows = run_process_tickets_pipeline(args, dataset, chroma_model)
-
-    log_chat_transcript("OUTPUT_ROWS", output_rows)
     sys.exit(0)
+    log_chat_transcript("MAIN_PIPELINE", f"Output Rows: {output_rows}.")
 
     # Saving output rows to file
     # data_handle.save_data(output_rows)
@@ -92,13 +105,13 @@ def parse_args(command_line_str: str) -> dict:
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     os.remove(CHAT_TRANSCRIPT_FILE)
-    log_chat_transcript("APP NAME", f"\n-----  🖥️ {APP_NAME} 🖥️  -----\n")
+
+    log_chat_transcript("MAIN", f"\n-----  🖥️ {APP_NAME} 🖥️  -----\n")
 
     prog_start_time = start_timer()
     run_id = gen_run_id()
 
-    print(f"----  🖨️️  START RUN ID: {run_id}  🖨️️  ----")
-    log_chat_transcript("Start Program", f"RUN ID: {run_id}")
+    log_chat_transcript("MAIN", f"Start Program\nRUN ID: {run_id}")
 
     global args
     args = parse_args(sys.argv[1:])
@@ -106,19 +119,17 @@ if __name__ == "__main__":
     show_banner(APP_NAME)
 
     # Start Chat Transcript Logging
-    log_chat_transcript(
-        "PIPELINE_INIT", f"Initialized pipeline with arguments: {args}"
-    )
+    log_chat_transcript("MAIN", f"Initialized pipeline with arguments: {args}")
     result = run_main_pipeline(args)
 
     if result:
         msg = f"✅️ Data saved to {OUTPUT_FILE}."
-        print(msg)
-        log_chat_transcript("DATA SAVED", msg)
+        log_chat_transcript("MAIN", msg)
 
     show_timer(prog_start_time)
     log_chat_transcript(
-        "End Program Run Time", get_time(prog_start_time) + f"RUN ID: {run_id}"
+        "MAIN",
+        "End Program Run Time "
+        + get_time(prog_start_time)
+        + f"RUN ID: {run_id}",
     )
-
-    print(f"\n-----  🖨️️ END RUN ID: {run_id} 🖨️️  -----\n")

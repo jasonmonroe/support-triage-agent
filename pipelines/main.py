@@ -53,9 +53,7 @@ def run_rag_pipeline(
     data_refresh = args.get("refresh")
 
     def _ingest(
-        chroma_model: ChromaModel,
-        doc_handle: DocumentHandler,
-        collection_count: int,
+        chroma_model: ChromaModel, doc_handle: DocumentHandler
     ) -> RagStatus:
 
         # doc_handle = DocumentHandler(dataset.get("md_files"))
@@ -136,8 +134,12 @@ def run_rag_pipeline(
             "DATA_REFRESH", "🗑️ Wiping database before ingesting..."
         )
         ChromaModel.delete()
+        # Reconnect — the directory was just wiped out from under this
+        # instance's existing client/collection.
+        chroma_model.reload()
 
-        return _ingest(chroma_model)
+        doc_handle = DocumentHandler(dataset.get("md_files"))
+        return _ingest(chroma_model, doc_handle)
 
     # Not refreshing — nothing gets deleted on this path, so it's always
     # safe to construct immediately and check the count before deciding
@@ -148,19 +150,19 @@ def run_rag_pipeline(
 
     rag_status = _verify(document_cnt, collection_count)
     if rag_status == RagStatus.FAIL:
-        return _ingest(chroma_model, doc_handle, collection_count)
+        return _ingest(chroma_model, doc_handle)
 
     elif rag_status == RagStatus.PARTIAL:
         collection_pct = collection_count / document_cnt
         ans = input(
-            f"Your collection status is {rag_status} at {collection_pct}%. Do you want to ingest again? Y or N? _"
+            f"Your {chroma_model.collection_name} collection status is {rag_status} at {collection_pct}%. Do you want to ingest again? Y or N? _"
         )
 
         if ans[:1].upper() == "Y":
             log_chat_transcript(
                 "RAG_PIPELINE", "😊 You chose `Yes`.  Ingesting to begin..."
             )
-            return _ingest(chroma_model, doc_handle, collection_count)
+            return _ingest(chroma_model, doc_handle)
         else:
             log_chat_transcript(
                 "RAG_PIPELINE", "😦 You chose `No`.  Exiting RAG."
@@ -253,14 +255,13 @@ def run_process_tickets_pipeline(
                 request_ type
                 ) to create the output.csv row
             """
-            response = analyzer.support_agent_model.get_response(
-                prompt, row.Index
-            )
+            response = support_agent_model.get_response(prompt, row.Index)
             log_chat_transcript("TICKET_PIPELINE", f"Response: {response}.")
 
             if not response or hasattr(response, "error"):
-                print(
-                    f"\n🚨 No response was given due to an error.  Breaking loop at index {row.Index}.\n"
+                log_chat_transcript(
+                    "TICKET_PIPELINE",
+                    f"🚨 No response was given due to an error.  Breaking loop at row index {row.Index}. 🚨\n",
                 )
                 break
 
@@ -276,7 +277,7 @@ def run_process_tickets_pipeline(
             log_chat_transcript(
                 "TICKET_PIPELINE", get_progress_bar(row.Index, row_cnt)
             )
-            print(get_progress_bar(row.Index, row_cnt))
+            # print(get_progress_bar(row.Index, row_cnt))
 
     print("sys.exit(0) Exiting program...")
     sys.exit(0)

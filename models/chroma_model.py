@@ -13,10 +13,10 @@ import chromadb
 # Vector Libraries
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_huggingface import HuggingFaceEmbeddings
 
 # Local Libraries
+from models.gemini_model import GeminiModel
 from src.constants import (
     CHROMA_COLL_NAME,
     CHROMA_DB_DIR,
@@ -24,28 +24,37 @@ from src.constants import (
     CHROMA_SERVER_NO_TELEMETRY,
     DOCUMENT_DIR_PERM,
     HF_BATCH_SIZE,
-    MODEL_API_KEY,
-    MODEL_EMBEDDING,
 )
 from src.enums import Company
-from src.utils import get_progress_bar, log_chat_transcript, sum_bytes_in_dir
+from src.utils import log_chat_transcript, sum_bytes_in_dir
 
 
-class ChromaModel:
+class ChromaModel(GeminiModel):
     """
     Manages the persistent vector store lifecycle using ChromaDB and handles both
     similarity-based and metadata-structured Self-Query retrieval mechanisms.
     """
 
     def __init__(self):
+        super().__init__()
         os.environ["CHROMA_SERVER_NO_TELEMETRY"] = CHROMA_SERVER_NO_TELEMETRY
 
-        self._client = chromadb.PersistentClient(
-            path=os.path.abspath(CHROMA_DB_DIR)
-        )
+        self._client = self._load_client()
         self.collection_name = CHROMA_COLL_NAME
-        self.embedding_model = MODEL_EMBEDDING
-        self.retriever = None
+        self.vector_storage = self._get_vector_storage()
+
+    def _load_client(self) -> chromadb.PersistentClient:
+        return chromadb.PersistentClient(path=os.path.abspath(CHROMA_DB_DIR))
+
+    def reload(self) -> None:
+        """
+        Reconnects to the persistent store. Required after `delete()`
+        wipes the database directory out from under an already-open
+        instance — its `_client`/`vector_storage` still reference the
+        now-deleted files, so writes through them fail with "attempt to
+        write a readonly database" instead of hitting the fresh files.
+        """
+        self._client = self._load_client()
         self.vector_storage = self._get_vector_storage()
 
     def _search_with_scores(
@@ -77,12 +86,14 @@ class ChromaModel:
             collection_name=self.collection_name,
         )
 
+    """
     def _get_embeddings(self) -> GoogleGenerativeAIEmbeddings:
         return GoogleGenerativeAIEmbeddings(
             # e.g., "models/text-embedding-004" or "models/gemini-embedding-001"
             model=f"models/{self.embedding_model}",
             google_api_key=MODEL_API_KEY,
         )
+    """
 
     def _get_hf_embeddings(self) -> HuggingFaceEmbeddings:
         """
@@ -109,26 +120,30 @@ class ChromaModel:
         """
 
         # 11,450 chunks, 774 md files
+        # 10,675 chunks, 775 md files?
         document_cnt = len(documents)
 
-        print(
-            f"\n# --- ➕ Adding {document_cnt} vector documents with a batch size of {batch_size}. ➕ --- #"
+        log_chat_transcript(
+            "CHROMA_MODEL",
+            f"➕ Adding {document_cnt} vector documents with a batch size of {batch_size}.",
         )
 
         for i in range(0, document_cnt, batch_size):
-            log_chat_transcript(
-                "CHROMA_MODEL", get_progress_bar(i, document_cnt)
-            )
+            # log_chat_transcript(
+            #    "CHROMA_MODEL", get_progress_bar(i, document_cnt)
+            # )
             self.vector_storage.add_documents(documents[i : i + batch_size])
 
-        return True if i >= document_cnt else False
+        return True if i >= document_cnt - 1 else False
 
     def get_collection_count(self) -> int:
         """Returns the number of documents currently in the vector collection."""
         try:
             return self.vector_storage._collection.count()
         except Exception as e:
-            log_chat_transcript("ERROR COLLECTION_COUNT", e)
+            log_chat_transcript(
+                "CHROMA_MODEL", f"ERROR: Collection Count: {e}"
+            )
             return 0
 
     def query(
@@ -160,13 +175,13 @@ class ChromaModel:
         target_db_dir = os.path.abspath(CHROMA_DB_DIR)
 
         log_chat_transcript(
-            "DELETE_CHROMA_DB_DIR",
+            "CHROMA_MODEL",
             f"🗑️ Wiping Database directory: {target_db_dir}...",
         )
 
         if not os.path.exists(target_db_dir):
             log_chat_transcript(
-                "DELETE_CHROMA_DB_DIR",
+                "CHROMA_MODEL",
                 f"⚠️ Warning: Directory {target_db_dir} does not exist. Creating a fresh one now...",
             )
             os.makedirs(target_db_dir, exist_ok=True)
@@ -182,7 +197,7 @@ class ChromaModel:
             filepath = os.path.join(target_db_dir, filename)
             try:
                 log_chat_transcript(
-                    "DELETE_CHROMA_DB_DIR",
+                    "CHROMA_MODEL",
                     f"Purging database artifact: {filepath}...",
                 )
 
@@ -193,17 +208,17 @@ class ChromaModel:
 
             except FileNotFoundError as e:
                 log_chat_transcript(
-                    "DELETE_CHROMA_DB_DIR",
+                    "CHROMA_MODEL",
                     f"🚨 Failed to wipe element path target {filepath}. Exception: {e}",
                 )
 
         if next(os.scandir(target_db_dir), None) is None:
             os.chmod(target_db_dir, DOCUMENT_DIR_PERM)
             log_chat_transcript(
-                "DELETE_CHROMA_DB_DIR",
+                "CHROMA_MODEL",
                 f"📁 Database directory {CHROMA_DB_DIR} is empty and ready for use.",
             )
             log_chat_transcript(
-                "DELETE_CHROMA_DB_DIR",
+                "CHROMA_MODEL",
                 f"🖊️ {CHROMA_DB_DIR} privileges are set to {DOCUMENT_DIR_PERM}.\n",
             )

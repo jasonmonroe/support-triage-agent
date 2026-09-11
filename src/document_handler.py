@@ -6,6 +6,7 @@
 # Python Libraries
 
 # Vendor Libraries
+import frontmatter
 from langchain_classic.chains.query_constructor.schema import AttributeInfo
 from langchain_core.documents import Document
 from langchain_text_splitters import (
@@ -40,7 +41,7 @@ class DocumentHandler:
 
         if len(self._md_files) == 0:
             log_chat_transcript(
-                "DOCUMENT_PROCESSING", "⚠️ No markdown files present."
+                "DOCUMENT_HANDLER", "⚠️ No markdown files present."
             )
             return []
 
@@ -53,10 +54,16 @@ class DocumentHandler:
                 # Get metadata for document creation
                 content = company_dict.get("content")
                 metadata = meta.extract(company, file_order, company_dict)
-                log_chat_transcript("DOCUMENT_METADATA", metadata)
+                log_chat_transcript("DOCUMENT_HANDLER: METADATA", metadata)
+
+                # Strip YAML frontmatter — MetadataExtractor already
+                # captured it as structured metadata above, so leaving it
+                # in page_content only produces a frontmatter-only chunk
+                # with no article body (chunk_idx 0 for every file).
+                body = frontmatter.loads(content).content
 
                 # Create Document
-                document = self._create(content, metadata)
+                document = self._create(body, metadata)
                 documents.append(document)
 
         # Configure text splitters
@@ -69,11 +76,11 @@ class DocumentHandler:
         """
         Process all markdown files for each company
         """
-        # Define headers to split on and track in metadata
+        # Define headers (<h1>, <h2>, <h3>) to split on and track in metadata
         headers_md = [
-            ("#", "Title"),  # <h1>
-            ("##", "Section"),  # <h2>
-            ("###", "Subsection"),  # <h3>
+            ("#", "Title"),
+            ("##", "Section"),
+            ("###", "Subsection"),
         ]
 
         markdown_splitter = MarkdownHeaderTextSplitter(
@@ -126,7 +133,7 @@ class DocumentHandler:
 
             if doc is None or file_order == 0:
                 message = f"⚠️  No document found by file order:{file_order}."
-                log_chat_transcript("DOCUMENT_PROFILE", message)
+                log_chat_transcript("DOCUMENT_HANDLE: PROFILE", message)
                 return None
 
             docs = [doc]
@@ -135,7 +142,7 @@ class DocumentHandler:
         # Display if no documents to show...
         if not docs:
             message = "⚠️ No documents to show."
-            log_chat_transcript("DOCUMENT_PROFILE", message)
+            log_chat_transcript("DOCUMENT_HANDLE: PROFILE", message)
             return None
 
         # This will display all documents or one particular one by file_order
@@ -168,7 +175,7 @@ class DocumentHandler:
             # print(f"\t+--- Document: {i + 1} ---+")
             document_body += f"\t+--- Document: {i + 1} ---+\n"
 
-            log_chat_transcript("DOCUMENT_PROFILE", document_body)
+            log_chat_transcript("DOCUMENT_HANDLE: PROFILE", document_body)
 
         print("\n")
 

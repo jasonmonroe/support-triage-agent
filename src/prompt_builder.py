@@ -41,7 +41,7 @@ class PromptBuilder:
                 dict_data, pretty=True, full_document=False
             )
         except Exception as e:
-            log_chat_transcript("PROMPT_BUILDER", e)
+            log_chat_transcript("PROMPT_BUILDER", f"Empty Data: {e}")
 
             # Return an empty string if dict_data is empty or invalid.
             return ""
@@ -54,6 +54,8 @@ class PromptBuilder:
                 print(f"value -> {value[:1024]}")
                 ticket_dict[key] = value
                 print(f"ticket_dict[{key}] has a value...")
+
+        log_chat_transcript("PROMPT_BUILDER", ticket_dict)
 
         return {"ticket": ticket_dict}
 

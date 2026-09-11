@@ -51,16 +51,15 @@ class TicketAnalyzer:
         show_timer(start_time)
 
         if len(documents) == 0:
-            message = "🚨 ERROR: No retrieved documents found."
+            message = "🚨 ERROR: No retrieved documents found. 🚨"
             log_chat_transcript(
                 message,
             )
             return ""
         else:
-            message = f"Retreived Document Count: {len(documents)}."
+            message = f"Retrieved Document Count: {len(documents)}."
             log_chat_transcript(
-                "TICKET_ANALYSIS",
-                message,
+                "TICKET_ANALYSIS", {"message": message, "documents": documents}
             )
 
         # Run groundness on the retrieved documents

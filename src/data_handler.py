@@ -48,16 +48,16 @@ class DataHandler:
 
         # Load data files
         if args.get("rag"):
-            # self._compact_documents(DATA_DIR)
             self.md_files["claude"] = self._load_md_files(CLAUDE_DIR)
             self.md_files["hackerrank"] = self._load_md_files(HACKERRANK_DIR)
             self.md_files["visa"] = self._load_md_files(VISA_DIR)
+
             self.md_file_cnt = (
                 len(self.md_files["claude"])
                 + len(self.md_files["hackerrank"])
                 + len(self.md_files["visa"])
             )
-            log_chat_transcript("MARKDOWN_FILES", self.md_files)
+            log_chat_transcript("DATA_HANDLER: MARKDOWN FILES", self.md_files)
 
     def _load_data(self, use_sample: bool) -> None:
         """
@@ -148,9 +148,7 @@ class DataHandler:
         }
 
     def _clean_data(self):
-        log_chat_transcript(
-            "CLEANING_SUPPORT_TICKETS", f"🧹 Cleaning {self._filepath}..."
-        )
+        log_chat_transcript("DATA_HANDLER", f"🧹 Cleaning {self._filepath}...")
 
         """
         Note: The csv file is sloppy with unnecessary spaces in the headers.
@@ -243,6 +241,6 @@ class DataHandler:
         """
 
         log_chat_transcript(
-            "SAVING OUTPUT ROWS", f"--- 💾 Saving data to {OUTPUT_FILE}."
+            "DATA_HANDLER", f"--- 💾 Saving data to {OUTPUT_FILE}."
         )
         csv_data.to_csv(OUTPUT_FILE, index=False)

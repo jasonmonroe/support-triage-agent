@@ -13,51 +13,55 @@ import time
 from openai import InternalServerError, OpenAI, RateLimitError
 
 # Local Libraries
+from models.gemini_model import GeminiModel, GeminiUnavailableError
 from src.constants import (
-    LLAMA_MODEL,
-    LLAMA_SAFE,
-    LLAMA_UNSAFE_CODES,
     MAX_TOKENS,
-    MODEL_API_KEY,
-    MODEL_API_URL,
-    MODEL_NAME,
     RATE_LIMIT_PAUSE_TIMER,
     RATE_LIMIT_RETRIES,
     SYSTEM_INSTR_PROMPT,
 )
+from src.enums import Status
 from src.utils import log_chat_transcript, show_banner
 
 
-class SupportAgentModel:
+class SupportAgentModel(GeminiModel):
     """
     A class to represent a language model API interface for ticket triage.
     """
 
-    def __init__(self, row_cnt: int = 0, log: bool = True):
-        if (
-            MODEL_API_URL is None
-            or MODEL_NAME is None
-            or MODEL_API_KEY is None
-        ):
-            raise ValueError(
-                "🚨 Credentials aren't properly being read. Check environment file. 🚨"
-            )
+    def __init__(self, row_cnt: int = 0):
+        super().__init__()
 
-        subtitles = [
-            f"🤖MODEL_NAME: {MODEL_NAME}",
-            f"🌐️MODEL_API_URL: {MODEL_API_URL}",
-            f"📄️DATA ROWS: {row_cnt}",
-        ]
+        subtitles = []
+        attr_dict = self.__dict__
+        for key, value in attr_dict.items():
+            if "_" not in key and "_key" in key and value is None:
+                raise ValueError(
+                    f"🚨 {key} Credentials aren't properly being read. Check environment file. 🚨"
+                )
+
+            display_value = (
+                self._mask_secret(value) if key == "api_key" else value
+            )
+            subtitles.append(
+                f"{key.title().replace('_', ' ')}: {display_value}"
+            )
 
         self.title = "Support Agent Model"
         show_banner(self.title, subtitles)
 
-        self._client = self._load_model()
+        self._client = self._load_client()
 
-    def _load_model(self) -> OpenAI:
+    @staticmethod
+    def _mask_secret(value: str | None) -> str:
+        if not value or len(value) <= 8:
+            return "***"
+        return f"{value[:4]}...{value[-4:]}"
+
+    def _load_client(self) -> OpenAI:
         return OpenAI(
-            base_url=MODEL_API_URL,
-            api_key=MODEL_API_KEY,
+            base_url=self.api_url,
+            api_key=self.api_key,
             timeout=120,  # ⏱️ Kill the connection if it hangs over 120 seconds
             max_retries=0,  # 🔄 Let custom while-loop handle retry logic explicitly
         )
@@ -70,39 +74,56 @@ class SupportAgentModel:
         while attempt < RATE_LIMIT_RETRIES:
             try:
                 # Check if it's safe first
-                llama_response = self.filter_input_with_llama_guard(prompt)
 
-                log_chat_transcript(
-                    "SUPPORT_AGENT_MODEL", f"Llama Response: {llama_response}."
+                response = self._client.chat.completions.create(
+                    model=self.name,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": SYSTEM_INSTR_PROMPT.format(
+                                agent_title=self.title
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.0,
+                    max_completion_tokens=MAX_TOKENS,
+                    response_format={"type": "json_object"},
+                    top_p=1.0,
+                    timeout=90.0,
                 )
 
-                if llama_response in LLAMA_SAFE:
-                    response = self._client.chat.completions.create(
-                        model=MODEL_NAME,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": SYSTEM_INSTR_PROMPT.format(
-                                    agent_title=self.title
-                                ),
-                            },
-                            {"role": "user", "content": prompt},
-                        ],
-                        temperature=0.0,
-                        max_completion_tokens=MAX_TOKENS,
-                        response_format={"type": "json_object"},
-                        top_p=1.0,
-                        timeout=90.0,
+                choice = response.choices[0] if response.choices else None
+                if choice and (choice.finish_reason or "").startswith(
+                    "content_filter"
+                ):
+                    print(
+                        f"\n🚨 Idx: {row_index} | {self.title} blocked by"
+                        f" content safety filter: {choice.finish_reason} 🚨"
                     )
+                    log_chat_transcript(
+                        "SUPPORT_AGENT_MODEL",
+                        f"Content filter block ({choice.finish_reason}) at"
+                        f" index {row_index}.",
+                    )
+                    return {
+                        "status": Status.ESCALATED,
+                        "justification": (
+                            f"Escalated: response blocked by content safety"
+                            f" filter ({choice.finish_reason})."
+                        ),
+                    }
 
-                    return self._format_response(
-                        self._filter_response(response)
-                    )
-                else:
-                    print("LLAMA UNSAFE FLAG.  Returning empty string!")
-                    return ""
+                return self._format_response(self._filter_response(response))
 
             except InternalServerError as e:
+                status_code = getattr(e, "status_code", None)
+
+                if status_code == 503:
+                    raise GeminiUnavailableError(
+                        f"Gemini model {self.name!r} is unavailable due to high demand."
+                    ) from e
+
                 print(
                     f"🚨 Idx: {row_index} | {self.title} Server error encountered (503/5xx): {e} 🚨"
                 )
@@ -129,7 +150,6 @@ class SupportAgentModel:
                     if isinstance(body, dict)
                     else str(e)
                 )
-                print(f"\n🚨 {error_message} 🚨")
 
                 delay_time = self._parse_delay_time(error_message)
                 log_chat_transcript(
@@ -203,42 +223,3 @@ class SupportAgentModel:
         if not response:
             return {}
         return response
-
-    def _ground_truth(self):
-        return ""
-
-    def filter_input_with_llama_guard(self, user_input_str: str) -> str:
-        """
-        Filters user input using Llama Guard to ensure safety.
-        """
-        try:
-            llama_response = self._client.chat.completions.create(
-                messages=[{"role": "user", "content": user_input_str.strip()}],
-                model=LLAMA_MODEL,
-            )
-
-            result = llama_response.choices[0].message.content.strip()
-
-            print("\nDEBUG --- LLAMA RESPONSE --- ")
-            print(f"{llama_response}")
-            print("\n# --- 🖊️  Open Guard result 🖊️ --- #")
-            print(result)
-            print("# --- 🖊️  Close Guard result 🖊️ --- #\n")
-
-            return self._apply_guard(result)
-
-        except Exception as e:
-            print(f"❌ Error with Llama Guard: {e}")
-            return ""
-
-    def _apply_guard(self, result: str) -> str:
-        if "unsafe" in result.lower():
-            codes = result.lower().replace("unsafe ", "").strip().split(",")
-            if any(
-                code.strip().upper() in LLAMA_UNSAFE_CODES for code in codes
-            ):
-                return "BYPASS_SAFE"
-            else:
-                return "UNSAFE"
-        else:
-            return "SAFE"
