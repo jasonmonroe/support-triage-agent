@@ -56,6 +56,11 @@ def show_timer(start_time_int: float) -> None:
     print(f"⏱ Run Time: {get_time(start_time_int)}")
 
 
+def banner(inspect) -> None:
+    m = inspect.f_code.co_name.title().replace("_", " ").upper()
+    show_banner(f"🏃 {m}")
+
+
 def _make_top_btm_line() -> str:
     open_close_len = 2  # open close of char `+` or `|`
     max_line_len = PEP8_LINE_LEN - open_close_len
@@ -185,7 +190,6 @@ def log_chat_transcript(stage: str, content: str) -> None:
         f"\n{divider}\n[{timestamp}] - STAGE: {stage}\n{divider}\n{content}\n"
     )
 
-    # if args.get("log"):
     print(log_entry[:1024])
 
     # Ensure the file appends cleanly
@@ -193,7 +197,7 @@ def log_chat_transcript(stage: str, content: str) -> None:
         log_file.write(log_entry)
 
 
-def get_progress_bar(idx: int, total: int) -> str:
+def get_progress_bar(idx: int, total: int, batch_size: int = 0) -> str:
     """
     Displays progress of claim analysis.
 
@@ -203,11 +207,12 @@ def get_progress_bar(idx: int, total: int) -> str:
     """
     print("")
 
-    i_empty, i_full = "☑️ ", "✅️ "
+    i_empty, i_full = " ☑️ ", " ✅️ "
     completion_pct = ((idx + 1) / total) * 100
 
     graphic = ""
-    for i in range(total):
+    # for i in range(total):
+    for i in range(0, total, batch_size):
         graphic += i_full if i <= idx else i_empty
 
     return graphic + f"\t{completion_pct:.1f}%"
@@ -256,7 +261,7 @@ def prettify_cols(series_row: pd.Series) -> list[str]:
     ]
 
 
-def pretty_dict(d: dict, indent: int = 4) -> str:
+def pretty_dict(d: dict, indent: int = 4, stage: str = "") -> str:
     """Converts a dictionary into a pretty-printed, indented JSON string.
 
     Handles custom types like Enums safely.
@@ -266,7 +271,7 @@ def pretty_dict(d: dict, indent: int = 4) -> str:
         indent=indent,
         default=lambda o: o.value if isinstance(o, Enum) else str(o),
     )
-    log_chat_transcript("", pretty)
+    log_chat_transcript(stage, pretty)
 
     return pretty
 
@@ -296,3 +301,35 @@ def sum_bytes_in_dir(dir_path: str) -> int:
                 continue
 
     return total
+
+
+def format_bytes(num_bytes: int) -> str:
+    """
+    Convert an integer byte count to a compact size string.
+
+    Uses binary units:
+    1 KB = 1024 bytes
+    1 MB = 1024 KB
+    1 GB = 1024 MB
+    1 TB = 1024 GB
+
+    Examples:
+        format_bytes(1024)            -> "1KB"
+        format_bytes(1_572_864)       -> "1.5MB"
+        format_bytes(5_368_709_120)   -> "5GB"
+    """
+    if num_bytes < 0:
+        raise ValueError("num_bytes must be non-negative")
+
+    units = ("B", "KB", "MB", "GB", "TB")
+    size = float(num_bytes)
+    unit_index = 0
+
+    while size >= 1024 and unit_index < len(units) - 1:
+        size /= 1024
+        unit_index += 1
+
+    if size.is_integer():
+        return f"{int(size)}{units[unit_index]}"
+
+    return f"{size:.2f}".rstrip("0").rstrip(".") + units[unit_index]

@@ -26,7 +26,12 @@ from src.constants import (
     HF_BATCH_SIZE,
 )
 from src.enums import Company
-from src.utils import log_chat_transcript, sum_bytes_in_dir
+from src.utils import (
+    format_bytes,
+    get_progress_bar,
+    log_chat_transcript,
+    sum_bytes_in_dir,
+)
 
 
 class ChromaModel(GeminiModel):
@@ -39,9 +44,10 @@ class ChromaModel(GeminiModel):
         super().__init__()
         os.environ["CHROMA_SERVER_NO_TELEMETRY"] = CHROMA_SERVER_NO_TELEMETRY
 
-        self._client = self._load_client()
         self.collection_name = CHROMA_COLL_NAME
-        self.vector_storage = self._get_vector_storage()
+        self.reload()
+        # self._client = self._load_client()
+        # self.vector_storage = self._get_vector_storage()
 
     def _load_client(self) -> chromadb.PersistentClient:
         return chromadb.PersistentClient(path=os.path.abspath(CHROMA_DB_DIR))
@@ -57,22 +63,6 @@ class ChromaModel(GeminiModel):
         self._client = self._load_client()
         self.vector_storage = self._get_vector_storage()
 
-    def _search_with_scores(
-        self, company: str
-    ) -> list[tuple[Document, float]]:
-        """
-        Executes a similarity search with distance scores against the vector collection,
-        applying optional company metadata filtering.
-        """
-        params = {"k": CHROMA_RESULT_CNT}
-        if company:
-            params["filter"] = {"company": company.lower()}
-
-        return self.vector_storage.similarity_search_with_score(
-            search_type="similarity",
-            search_kwargs=params,
-        )
-
     def _get_vector_storage(self) -> Chroma:
         """Instantiates the primary vector storage collection."""
         if self.embedding_model is None:
@@ -85,15 +75,6 @@ class ChromaModel(GeminiModel):
             embedding_function=self._get_hf_embeddings(),
             collection_name=self.collection_name,
         )
-
-    """
-    def _get_embeddings(self) -> GoogleGenerativeAIEmbeddings:
-        return GoogleGenerativeAIEmbeddings(
-            # e.g., "models/text-embedding-004" or "models/gemini-embedding-001"
-            model=f"models/{self.embedding_model}",
-            google_api_key=MODEL_API_KEY,
-        )
-    """
 
     def _get_hf_embeddings(self) -> HuggingFaceEmbeddings:
         """
@@ -112,29 +93,29 @@ class ChromaModel(GeminiModel):
         )
 
     def add_vector_documents(
-        self, documents: list, batch_size: int = HF_BATCH_SIZE
+        self, chunks: list, batch_size: int = HF_BATCH_SIZE
     ) -> bool:
         """
-        Embeds and adds documents to the vector store in batches using explicit retry logic
-        that parses vendor rate limit messages and backs off gracefully.
+        Embeds and adds (chunked) documents to the vector store in batches using
+        explicit retry logic that parses vendor rate limit messages and backs
+        off gracefully.
         """
 
-        # 11,450 chunks, 774 md files
-        # 10,675 chunks, 775 md files?
-        document_cnt = len(documents)
+        # prev: 11,450 chunks, 774 md files
+        # curr: 10,675 chunks, 775 md files?
+        chunk_cnt = len(chunks)
+        cnt = 0
+        for i in range(0, chunk_cnt, batch_size):
+            log_chat_transcript(
+                "CHROMA_MODEL", get_progress_bar(i, chunk_cnt, batch_size)
+            )
+            cnt += self.vector_storage.add_documents(
+                chunks[i : i + batch_size]
+            )
 
-        log_chat_transcript(
-            "CHROMA_MODEL",
-            f"➕ Adding {document_cnt} vector documents with a batch size of {batch_size}.",
-        )
-
-        for i in range(0, document_cnt, batch_size):
-            # log_chat_transcript(
-            #    "CHROMA_MODEL", get_progress_bar(i, document_cnt)
-            # )
-            self.vector_storage.add_documents(documents[i : i + batch_size])
-
-        return True if i >= document_cnt - 1 else False
+        print(f"add_vector_documents() cnt = {cnt}")
+        return True
+        # return True if cnt >= chunk_cnt else False
 
     def get_collection_count(self) -> int:
         """Returns the number of documents currently in the vector collection."""
@@ -151,26 +132,28 @@ class ChromaModel(GeminiModel):
     ) -> list[tuple[Document, float]]:
         """
         Queries the vector collection using similarity search with distance scores.
-        Applies an exact company metadata filter if specified; otherwise searches globally.
+        Applies an exact company metadata filter if specified; otherwise searches
+        globally.
         """
         kwargs = {"k": CHROMA_RESULT_CNT}
 
         if company and company.strip().lower() != Company.NONE.lower():
             kwargs["filter"] = {"company": company.lower()}
 
+        log_chat_transcript("CHROMA_MODEL: QUERY", f"💬 {query_str}")
+
         return self.vector_storage.similarity_search_with_score(
-            query=query_str, **kwargs
+            query=query_str, search_type="similarity", search_kwargs=kwargs
         )
 
     @staticmethod
     def delete() -> None:
         """
-        Purges the target database directory (db/) to reset ChromaDB
-        states. Static because it's pure filesystem work — it never
-        touches a client/collection — which lets callers wipe the
-        directory *before* any ChromaModel instance (and its live
-        connection) exists, avoiding a stale connection pointed at
-        files that no longer exist.
+        Purges the target database directory (db/) to reset ChromaDB states.
+        Static because it's pure filesystem work — it never touches a
+        client/collection — which lets callers wipe the directory *before* any
+        ChromaModel instance (and its live connection) exists, avoiding a stale
+        connection pointed at files that no longer exist.
         """
         target_db_dir = os.path.abspath(CHROMA_DB_DIR)
 
@@ -182,13 +165,17 @@ class ChromaModel(GeminiModel):
         if not os.path.exists(target_db_dir):
             log_chat_transcript(
                 "CHROMA_MODEL",
-                f"⚠️ Warning: Directory {target_db_dir} does not exist. Creating a fresh one now...",
+                (
+                    f"⚠️ Warning: Directory {target_db_dir} does not exist.",
+                    "Creating a fresh one now...",
+                ),
             )
             os.makedirs(target_db_dir, exist_ok=True)
             os.chmod(target_db_dir, DOCUMENT_DIR_PERM)
             return None
 
         dir_size = sum_bytes_in_dir(target_db_dir)
+        dir_size = format_bytes(dir_size)
         log_chat_transcript(
             "CHROMA_DB_SIZE", f"{target_db_dir} directory is {dir_size}."
         )

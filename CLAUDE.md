@@ -43,6 +43,12 @@ All secrets come from `.env` (never commit it). Copy `.env.example` to get start
 
 Load with `python-dotenv` or `export $(cat .env)` before running.
 
+## Coding Style
+
+- Follow PEP8.
+- Respect Python's public/protected/private convention: no leading underscore for public members, single leading underscore (`_name`) for protected, double leading underscore (`__name`) for private.
+- If a variable or method is not used outside its class, it must not be public — mark it protected or private accordingly.
+
 ## Key Conventions
 
 - **All constants** live in `src/constants.py`. Do not hardcode paths, model names, or prompts inline.

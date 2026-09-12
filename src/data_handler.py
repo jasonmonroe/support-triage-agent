@@ -170,7 +170,8 @@ class DataHandler:
         text_cols = df.select_dtypes(include=["object", "string"]).columns
 
         for col in text_cols:
-            # Fill missing values, ensure string representation, and strip whitespace in one pass
+            # Fill missing values, ensure string representation, and strip
+            # whitespace in one pass
             df[col] = df[col].fillna("").astype(str).str.strip()
 
         self.support_tickets = df

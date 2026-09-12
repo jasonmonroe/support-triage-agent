@@ -72,7 +72,7 @@ class DocumentHandler:
 
         return self._chunks
 
-    def _create_chunks(self, documents: list):
+    def _create_chunks(self, documents: list) -> list:
         """
         Process all markdown files for each company
         """
@@ -93,9 +93,8 @@ class DocumentHandler:
             chunk_overlap=DOCUMENT_CHUNK_OVERLAP,
         )
 
-        chunks = []
-
         # Split each document and assign chunk index AFTER splitting.
+        chunks = []
         for document in documents:
             # Split by markdown structure
             header_splits = markdown_splitter.split_text(document.page_content)

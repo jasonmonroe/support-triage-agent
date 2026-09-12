@@ -45,6 +45,7 @@ from src.constants import (
 )
 from src.data_handler import DataHandler
 from src.utils import (
+    banner,
     gen_run_id,
     get_time,
     log_chat_transcript,
@@ -55,9 +56,7 @@ from src.utils import (
 
 
 def run_main_pipeline(args: dict) -> bool:
-    print(
-        f"🏃 Runnning {inspect.currentframe().f_code.co_name.title().replace('_', ' ')}"
-    )
+    banner(inspect.currentframe())
 
     data_handle = DataHandler(args)
     dataset = data_handle.__dict__
@@ -106,6 +105,8 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     os.remove(CHAT_TRANSCRIPT_FILE)
 
+    show_banner(APP_NAME)
+
     log_chat_transcript("MAIN", f"\n-----  🖥️ {APP_NAME} 🖥️  -----\n")
 
     prog_start_time = start_timer()
@@ -115,8 +116,6 @@ if __name__ == "__main__":
 
     global args
     args = parse_args(sys.argv[1:])
-
-    show_banner(APP_NAME)
 
     # Start Chat Transcript Logging
     log_chat_transcript("MAIN", f"Initialized pipeline with arguments: {args}")
@@ -129,7 +128,7 @@ if __name__ == "__main__":
     show_timer(prog_start_time)
     log_chat_transcript(
         "MAIN",
-        "End Program Run Time "
-        + get_time(prog_start_time)
+        get_time(prog_start_time)
+        + " End Program Run Time\n"
         + f"RUN ID: {run_id}",
     )

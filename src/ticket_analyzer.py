@@ -52,9 +52,7 @@ class TicketAnalyzer:
 
         if len(documents) == 0:
             message = "🚨 ERROR: No retrieved documents found. 🚨"
-            log_chat_transcript(
-                message,
-            )
+            log_chat_transcript(message)
             return ""
         else:
             message = f"Retrieved Document Count: {len(documents)}."

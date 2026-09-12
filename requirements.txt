@@ -17,3 +17,4 @@ python-dotenv
 python-frontmatter
 sentence-transformers
 typing
+xmltodict

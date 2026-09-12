@@ -48,9 +48,6 @@ class GeminiModel(ABC):
             google_api_key=self.api_key,
         )
 
-    def ping_server(self) -> bool:
-        return True
-
     def _safety_filters(self) -> dict:
         # https://ai.google.dev/gemini-api/docs/safety-settings
         return {
