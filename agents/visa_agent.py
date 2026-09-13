@@ -24,7 +24,7 @@ class VisaAgent(SupportAgent):
         )
         self.title = "🤖 Visa Agent"
         self.company = "Visa"
-        self._title_agent_model(f"{self.title} Model")
+        self._set_agent_model_title(f"{self.title} Model")
 
     def _query(self, query_str: str) -> List[Document]:
         if not self._chroma_model:

@@ -15,7 +15,7 @@ class PromptBuilder:
     def __init__(self, dataset: dict):
 
         self._ticket_dict = {
-            "@row_index": dataset.get("row_index"),
+            "@id": dataset.get("row_index"),
         }
         self.prompt = self._build(dataset) or ""
 
@@ -47,7 +47,9 @@ class PromptBuilder:
             return ""
 
     def _get_ticket_data(self, dataset: dict) -> dict:
-        ticket_dict = {}
+        ticket_dict = {
+            "@id": dataset.get("row_index"),
+        }
         for key, value in dataset.items():
             if key not in ["document_chunks", "row_index"] and value:
                 print(f"key -> {key}")

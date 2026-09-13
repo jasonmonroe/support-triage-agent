@@ -6,8 +6,9 @@
 # Python Libraries
 
 # Vendor Libraries
+import html
+
 import frontmatter
-from langchain_classic.chains.query_constructor.schema import AttributeInfo
 from langchain_core.documents import Document
 from langchain_text_splitters import (
     RecursiveCharacterTextSplitter,
@@ -105,9 +106,23 @@ class DocumentHandler:
 
         # Split each document and assign chunk index AFTER splitting.
         chunks = []
+        seen_checksum = set()
         for document in documents:
+            # Check to see if the file has already been ingested before we
+            # add another chunk
+            checksum = document.metadata.get("checksum")
+            if checksum in seen_checksum:
+                log_chat_transcript(
+                    "DOCUMENT_HANDLER",
+                    f"Checksum: {checksum} found in sub_splits.  Skipping...",
+                )
+                continue
+
+            # Decode HTML in page content.
+            content = html.unescape(document.page_content)
+
             # Split by markdown structure
-            header_splits = markdown_splitter.split_text(document.page_content)
+            header_splits = markdown_splitter.split_text(content)
 
             # Sub-split long markdown sections while preserving metadata
             sub_splits = recursive_splitter.split_documents(header_splits)
@@ -116,16 +131,11 @@ class DocumentHandler:
             for idx, chunk in enumerate(sub_splits):
                 chunk.metadata.update(document.metadata)
                 chunk.metadata["chunk_idx"] = idx
-
-                # Deterministic per-chunk ID so re-ingesting the same
-                # source files upserts existing vectors instead of
-                # duplicating them (see ChromaModel.add_vector_documents).
-                # Uses `checksum` (content-derived) rather than `id`
-                # (a fresh random uuid4 on every run — see
-                # MetadataExtractor.extract) so the ID is actually stable
-                # across runs.
-                chunk.id = f"{document.metadata.get('checksum')}::{idx}"
+                # OLD CODE: chunk.id = f"{document.metadata.get('checksum')}::{idx}"
                 chunks.append(chunk)
+
+            if checksum:
+                seen_checksum.add(checksum)
 
         return chunks
 
@@ -200,6 +210,7 @@ class DocumentHandler:
 
         print("\n")
 
+    """
     # @TODO - may not need since we're not using a retriver.  Will resarch later!
     @staticmethod
     def metadata_field_info() -> list:
@@ -230,3 +241,4 @@ class DocumentHandler:
                 type="integer",
             ),
         ]
+    """

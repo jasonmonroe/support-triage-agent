@@ -38,12 +38,13 @@ class TicketAnalyzer:
         # Get company
         self._agent = self._get_agent(row_index, ticket_df)
         log_chat_transcript(
-            "TICKET_ANALYSIS", f"Agent Loaded: {self._agent.title}."
+            "TICKET_ANALYZER", f"Agent Loaded: {self._agent.title}."
         )
 
         # Classify the issue then identify req type, classify issue into a
         # product area assess urgency and risk.
-        self._agent.classify()
+        self._agent.classify_issue()
+        self._agent.make_decision()
 
         # Doc retrieval (for dataset)
         start_time = start_timer()
@@ -51,13 +52,17 @@ class TicketAnalyzer:
         show_timer(start_time)
 
         if len(documents) == 0:
-            message = "🚨 ERROR: No retrieved documents found. 🚨"
-            log_chat_transcript(message)
+            log_chat_transcript(
+                "TICKET_ANALYZER", "🚨 ERROR: No retrieved documents found. 🚨"
+            )
             return ""
         else:
-            message = f"Retrieved Document Count: {len(documents)}."
             log_chat_transcript(
-                "TICKET_ANALYSIS", {"message": message, "documents": documents}
+                "TICKET_ANALYZER",
+                {
+                    "message": f"Retrieved Document Count: {len(documents)}.",
+                    "documents": documents,
+                },
             )
 
         # Run groundness on the retrieved documents

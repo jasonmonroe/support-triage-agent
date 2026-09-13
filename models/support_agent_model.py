@@ -29,7 +29,7 @@ class SupportAgentModel(GeminiModel):
     A class to represent a language model API interface for ticket triage.
     """
 
-    def __init__(self, row_cnt: int = 0):
+    def __init__(self, row_count: int = 0):
         super().__init__()
 
         subtitles = []

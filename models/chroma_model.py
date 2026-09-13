@@ -111,7 +111,7 @@ class ChromaModel(GeminiModel):
         for i in range(0, chunk_count, batch_size):
             start_time = start_timer()
             log_chat_transcript(
-                "CHROMA_MODEL", get_progress_bar(i, chunk_count, batch_size)
+                "CHROMA_MODEL", get_progress_bar(i, chunk_count)
             )
             chunk_ids = self.vector_storage.add_documents(
                 chunks[i : i + batch_size]
@@ -140,16 +140,19 @@ class ChromaModel(GeminiModel):
         Queries the vector collection using similarity search with distance scores.
         Applies an exact company metadata filter if specified; otherwise searches
         globally.
+
+        https://reference.langchain.com/python/langchain-chroma/vectorstores/Chroma/similarity_search_with_score
         """
         kwargs = {"k": CHROMA_RESULT_CNT}
 
         if company and company.strip().lower() != Company.NONE.lower():
             kwargs["filter"] = {"company": company.lower()}
 
-        log_chat_transcript("CHROMA_MODEL", f"QUERY: 💬 {query_str}")
+        log_chat_transcript("CHROMA_MODEL", f"--- QUERY ---\n💬 {query_str}")
 
         return self.vector_storage.similarity_search_with_score(
-            query=query_str, search_type="similarity", search_kwargs=kwargs
+            query=query_str,
+            **kwargs,
         )
 
     def delete(self) -> None:

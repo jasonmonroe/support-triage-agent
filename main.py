@@ -27,8 +27,6 @@ __version__ = "1.0.0"
 
 
 # Python Libraries
-# from dotenv import load_dotenv
-# load_dotenv(dotenv_path="../.env", override=True)
 import inspect
 import os
 import sys
@@ -90,7 +88,7 @@ def run_main_pipeline(args: dict) -> bool:
                 "🚨 ERROR: There are no collections. Run again with the --rag flag. 🚨",
             )
             return False
-    sys.exit(0)
+
     # Process the tickets 🚩
     output_rows = run_process_tickets_pipeline(args, dataset, chroma_model)
     sys.exit(0)

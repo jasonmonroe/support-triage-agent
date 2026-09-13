@@ -19,6 +19,7 @@ from src.constants import (
     HIGH_RISK_TERMS,
     MIN_SEARCH_SCORE,
     RESP_EVAL_THRESHOLD,
+    TICKET_ISSUE_STRLEN,
     URGENT_TERMS,
 )
 from src.enums import Company, RequestType, Risk, Status, Urgency
@@ -75,37 +76,39 @@ class SupportAgent(ABC):
             return self._find_company()
         return company.strip().lower()
 
-    def _title_agent_model(self, title: str) -> None:
+    def _set_agent_model_title(self, title: str) -> None:
         self._model.title = title
 
-    def classify(self) -> None:
+    def classify_issue(self) -> None:
         """
         Classify and assess request type, product area, risk.
-        request_type/product_area are still finalized by the LLM's
-        structured output later (real classification, not keyword
-        matching) — this pass only extracts cheap, deterministic
-        risk/urgency signals so escalation doesn't depend solely on the
-        model's judgment.
+        request_type/product_area are still finalized by the LLM's structured
+        output later (real classification, not keyword matching) — this pass
+        only extracts cheap, deterministic risk/urgency signals so escalation
+        doesn't depend solely on the model's judgment.
         """
-        if not self.issue or len(self.issue) < 10:
+
+        # If no issue or it's too short invalidate the request type...
+        if not self.issue or len(self.issue) <= TICKET_ISSUE_STRLEN:
             self.request_type = RequestType.INVALID
 
         self._risk_level = self._assess_risk(self.issue)
         self._urgency = self._assess_urgency(self.issue)
 
-    def _assess_urgency(self, request: str) -> str:
+    def _assess_urgency(self, issue: str) -> str:
         """
         Assess the urgency of the request.
         """
-        text = (request or "").lower()
+        text = (issue or "").lower()
         is_urgent = any(term in text for term in URGENT_TERMS)
+
         return Risk.HIGH if is_urgent else Urgency.NORMAL
 
-    def _assess_risk(self, request: str) -> str:
+    def _assess_risk(self, issue: str) -> str:
         """
         Assess the risk of the request.
         """
-        text = (request or "").lower()
+        text = (issue or "").lower()
 
         if any(term in text for term in CRITICAL_RISK_TERMS):
             return Risk.CRITICAL
@@ -115,13 +118,29 @@ class SupportAgent(ABC):
 
         return Risk.LOW
 
-    def make_decision(self, request: str) -> str:
+    def make_decision(self) -> str:
         """
         Make a decision based on the request: reply or escalate, based purely
         on the risk level from classify() (pre-retrieval).
         """
-        is_risky = self._risk_level in (Risk.HIGH, Risk.CRITICAL)
-        return Status.ESCALATED if is_risky else Status.REPLIED
+        # Now that we know the risk set status and find a justification...
+        if self._risk_level in (Risk.HIGH, Risk.CRITICAL):
+            self.status = Status.ESCALATED
+            self.justification = f"{self.status}: Ticket matched '{self._risk_level}' risk signals."
+
+        else:
+            self.status = Status.REPLIED
+            # @TODO - Do we put Escalated in the justification or Replied?
+            # Status.ESCALATED
+            self.justification = (
+                f"{self.status}: No knowledge base match found to ground a"
+                " response."
+            )
+
+        # If no product area, lets flag it...
+        if not self.product_area:
+            self.justification += " Product Area is also unknown at this time."
+            print("🚩 Product Area is undefined!")
 
     def retrieve_relevant_documents(self) -> list:
         """
@@ -142,6 +161,7 @@ class SupportAgent(ABC):
         knowledge base grounds an answer, so the LLM is never asked to answer
         ungrounded. Also lifts product_area from the top-matching chunk's
         metadata rather than asking the LLM to guess it freehand.
+        """
 
         self.status = self.make_decision(self.issue)
 
@@ -160,10 +180,8 @@ class SupportAgent(ABC):
             return
 
         self.product_area = documents[0].metadata.get("product_area")
-        """
 
     def export(self, ticket_columns: list) -> dict:
-
         class_dict = self.__dict__
 
         export_dict = {}
@@ -458,6 +476,10 @@ class SupportAgent(ABC):
         }}
         """.strip().format(documents=formatted_docs)
 
+        log_chat_transcript(
+            "SUPPORT_AGENT", f"_draft_filtered_response()\n{system_prompt}"
+        )
+
         # Parse response, update attributes
         draft_response = self._model.get_response(
             system_prompt, self.row_index
@@ -465,7 +487,8 @@ class SupportAgent(ABC):
 
         if not draft_response:
             log_chat_transcript(
-                "DRAFT_FILTERED_RESPONSE", "No response returned."
+                "SUPPORT_AGENT",
+                "No response returned in _draft_filtered_response().",
             )
 
         return draft_response
@@ -536,10 +559,16 @@ class SupportAgent(ABC):
             documents=formatted_docs,
         )
 
+        log_chat_transcript(
+            "SUPPORT_AGENT", f"Verify Grounded Response: {system_prompt}"
+        )
+
         grounded_response = self._model.get_response(
             system_prompt, self.row_index
         )
-        log_chat_transcript("VERIFY_GROUNDED_RESPONSE", grounded_response)
+        log_chat_transcript(
+            "SUPPORT_AGENT", f"Verify Grounded Response: {grounded_response}"
+        )
 
         if not grounded_response:
             self.status = Status.ESCALATED
@@ -624,11 +653,17 @@ class SupportAgent(ABC):
             draft=draft_text,
         )
 
+        log_chat_transcript(
+            "SUPPORT_AGENT", f"Check Precision: {system_prompt}"
+        )
+
         precision_response = self._model.get_response(
             system_prompt, self.row_index
         )
 
-        log_chat_transcript("CHECK_PRECISION", precision_response)
+        log_chat_transcript(
+            "SUPPORT_AGENT", f"Check Precision: {precision_response}"
+        )
 
         if not precision_response:
             self.status = Status.ESCALATED
@@ -660,7 +695,7 @@ class SupportAgent(ABC):
             self.status = Status.REPLIED
             self.response = results.get("response", self.response)
             self.justification = (
-                f"Answered using grounded documentation: '{reasoning}'"
+                f"Answered using grounded documentation: '{reasoning}'."
             )
 
     def _is_company(self, company: str) -> bool:

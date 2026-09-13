@@ -247,13 +247,12 @@ def run_rag_pipeline(
 def run_process_tickets_pipeline(
     args: dict, dataset: dict, chroma_model
 ) -> list:
-    print("Exiting line 250")
-    sys.exit(0)
+
     banner(inspect.currentframe())
 
     tickets_df = dataset.get("support_tickets")
-    row_cnt = tickets_df.shape[0]
-    support_agent_model = SupportAgentModel(row_cnt)
+    row_count = tickets_df.shape[0]
+    support_agent_model = SupportAgentModel(row_count)
 
     analyzer = TicketAnalyzer(
         {
@@ -270,8 +269,8 @@ def run_process_tickets_pipeline(
         if row.Index == 0:
             # if row._______ == "________":
             # print(f"row={row.Issue}")
-            print(f"row={row}")
-            print(f"Assembling prompt for index: {row.Index}")
+            print(f"DBG: row={row}")
+            print(f"DBG: Assembling prompt for index: {row.Index}")
 
             """
             ┌─────────────────────────────────────────────────────────┐
@@ -315,7 +314,7 @@ def run_process_tickets_pipeline(
             show_timer(start_time)
 
             # Break loop (due to no retrieved documents or any other error)
-            if prompt == "":
+            if prompt == "" or not prompt:
                 log_chat_transcript(
                     "TICKET_PIPELINE", "😵 Prompt is empty.  Breaking loop."
                 )
@@ -355,7 +354,7 @@ def run_process_tickets_pipeline(
             time.sleep(PAUSE_TIMER)
 
             log_chat_transcript(
-                "TICKET_PIPELINE", get_progress_bar(row.Index, row_cnt)
+                "TICKET_PIPELINE", get_progress_bar(row.Index, row_count)
             )
 
             output_rows.append(response)

@@ -197,7 +197,37 @@ def log_chat_transcript(stage: str, content: str) -> None:
         log_file.write(log_entry)
 
 
-def get_progress_bar(idx: int, total: int, batch_size: int = 0) -> str:
+def get_progress_bar2(idx: int, total: int, batch_size: int = 0) -> str:
+    """
+    Displays progress of claim analysis.
+
+    :param idx: Current index (0-indexed)
+    :param total: Total number of items or batches
+    :param batch_size: Size of each batch (optional)
+    :return: Formatted progress bar string with percentage
+    """
+    # Use proper string literals instead of URL-encoded strings
+    i_empty, i_full = "☑️ ", "✅ "
+
+    # Calculate percentage based on the 0-indexed current position
+    completion_pct = ((idx + 1) / total) * 100
+
+    if batch_size == 0:
+        # Number of completed and remaining steps
+        completed = idx + 1
+        remaining = max(0, total - completed)
+        graphic = (i_full * completed) + (i_empty * remaining)
+    else:
+        # Calculate total steps and current progress in batch increments
+        total_steps = (total + batch_size - 1) // batch_size
+        completed_steps = (idx + 1) // batch_size
+        remaining_steps = max(0, total_steps - completed_steps)
+        graphic = (i_full * completed_steps) + (i_empty * remaining_steps)
+
+    return f"{graphic}\t{completion_pct:.1f}%"
+
+
+def get_progress_bar(idx: int, total: int) -> str:
     """
     Displays progress of claim analysis.
 
@@ -211,8 +241,7 @@ def get_progress_bar(idx: int, total: int, batch_size: int = 0) -> str:
     completion_pct = ((idx + 1) / total) * 100
 
     graphic = ""
-    # for i in range(total):
-    for i in range(0, total, batch_size):
+    for i in range(0, total):
         graphic += i_full if i <= idx else i_empty
 
     return graphic + f"\t{completion_pct:.1f}%"
@@ -231,7 +260,6 @@ def format_iso_date(date_str: str) -> datetime:
 
     # Try ISO 8601 first (handles 2026-04-15T01:46:20Z)
     try:
-        # Python <3.11 does not accept 'Z'; normalize to +00:00
         normalized = date_str.replace("Z", "+00:00")
         dt = datetime.fromisoformat(normalized)
 

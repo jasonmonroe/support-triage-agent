@@ -71,43 +71,12 @@ SUPPORT_TICKETS_FILE = os.path.join(SUPPORT_TICKETS_DIR, "support_tickets.csv")
 OUTPUT_FILE = os.path.join(SUPPORT_TICKETS_DIR, "output.csv")
 
 # Company Helper files
-
 CLAUDE_DIR = os.path.join(DATA_DIR, "claude")
 HACKERRANK_DIR = os.path.join(DATA_DIR, "hackerrank")
 VISA_DIR = os.path.join(DATA_DIR, "visa")
 
 # Company Helpers
-CRITICAL_RISK_TERMS = (
-    "fraud",
-    "unauthorized",
-    "breach",
-    "hacked",
-    "security vulnerability",
-    "data leak",
-    "legal action",
-    "lawsuit",
-    "subpoena",
-)
-
-HIGH_RISK_TERMS = (
-    "refund",
-    "chargeback",
-    "billing dispute",
-    "cancel my account",
-    "delete my account",
-    "gdpr",
-)
-
-URGENT_TERMS = (
-    "down",
-    "outage",
-    "cannot access",
-    "can't access",
-    "blocked",
-    "urgent",
-    "asap",
-    "immediately",
-)
+TICKET_ISSUE_STRLEN = 16
 
 COMPANY_KEYWORDS = {
     "claude": ("claude", "anthropic"),
@@ -115,6 +84,39 @@ COMPANY_KEYWORDS = {
     "visa": ("visa", "card", "payment", "merchant"),
 }
 
+# Ticket Issue Termanology Lists
+CRITICAL_RISK_TERMS = (
+    "breach",
+    "data leak",
+    "fraud",
+    "hacked",
+    "lawsuit",
+    "legal action",
+    "security vulnerability",
+    "subpoena",
+    "unauthorized",
+)
+
+HIGH_RISK_TERMS = (
+    "billing dispute",
+    "cancel my account",
+    "delete my account",
+    "gdpr",
+    "refund",
+    "chargeback",
+)
+
+URGENT_TERMS = (
+    "asap",
+    "blocked",
+    "can't access",
+    "cannot access",
+    "down",
+    "help",
+    "immediately",
+    "outage",
+    "urgent",
+)
 
 # Prompts
 SYSTEM_INSTR_PROMPT = """
@@ -160,7 +162,7 @@ Return ONLY the raw JSON object below — no markdown formatting, no code fences
 Follow this strict JSON schema. Each bracketed field lists its only allowed values — pick exactly one:
 
 {{
-  "status": "replied|escalated",
+  "status": "Replied|Escalated",
   "product_area": "screen|privacy|general_support|travel_support|community|identity-management-sso-jit-scim|billing|account_access|api_integration|mobile_app|web_platform",
   "request_type": "product_issue|feature_request|bug|invalid",
   "response": "Grounded user response, polite out-of-scope declination, or human escalation message. If context is insufficient, state that the answer is not available in documentation and the ticket is being escalated.",
@@ -168,6 +170,8 @@ Follow this strict JSON schema. Each bracketed field lists its only allowed valu
 }}
 """.strip()
 
+
+# -- Dont write below this line
 
 USER_PROMPT_TEMPLATE2 = """
 ## SUPPORT TICKET DATA FOR ANALYSIS
