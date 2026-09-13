@@ -32,8 +32,10 @@ import os
 import sys
 import warnings
 
+# Local Libraries
 from models.chroma_model import ChromaModel
-from pipelines.main import run_process_tickets_pipeline, run_rag_pipeline
+from pipelines.process_tickets import run_process_tickets_pipeline
+from pipelines.rag import run_rag_pipeline
 from src.constants import (
     APP_NAME,
     ARGS_LIST,
@@ -42,8 +44,6 @@ from src.constants import (
     OUTPUT_FILE,
 )
 from src.data_handler import DataHandler
-
-# Local Libraries
 from src.enums import RagStatus
 from src.utils import (
     banner,
