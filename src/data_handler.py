@@ -57,7 +57,6 @@ class DataHandler:
                 + len(self.md_files["hackerrank"])
                 + len(self.md_files["visa"])
             )
-            # log_chat_transcript("DATA_HANDLER: MARKDOWN FILES", self.md_files)
 
     def _load_data(self, use_sample: bool) -> None:
         """
@@ -77,42 +76,6 @@ class DataHandler:
 
         self.support_tickets = pd.read_csv(filepath)
         self._filepath = filepath
-
-    """
-    # @TODO - defunct
-    def _compact_md_files(self, dir) -> None:
-        # This version compacts all markdown files together
-        mds_dir = Path(dir)
-        md_files = list(mds_dir.rglob("*.md"))
-        self.md_files = [p.read_text(encoding="utf-8") for p in md_files]
-        log_chat_transcript("COMPACT_MARKDOWN_FILES", self.md_files)
-
-    
-    # @TODO - defunct
-    def _load_md_files_dbg(self, dir) -> list:
-        root_dir = Path(dir)
-        print(
-            "root_dir:",
-            root_dir,
-            "exists:",
-            root_dir.exists(),
-            "is_dir:",
-            root_dir.is_dir(),
-        )
-
-        target = dir.replace(DATA_DIR, "")
-        print("target:", repr(target))
-
-        md_files = []
-        for file_path in root_dir.rglob("*"):
-            print("found:", file_path, "is_file:", file_path.is_file())
-            if file_path.is_file():
-                file_dict = self._parse_md_file(target, file_path)
-                md_files.append(file_dict)
-
-        print("total files:", len(md_files))
-        return md_files
-    """
 
     def _load_md_files(self, dir) -> list:
         root_dir = Path(dir)
@@ -241,8 +204,11 @@ class DataHandler:
         print("\n# === MARKDOWN FILES === #")
         print(f"File Count: {self.md_file_cnt}")
 
-    def save_data(self, output_rows: list) -> None:
-        # Ensure output_rows is converted to a pandas DataFrame if it's currently a list
+    def save_data(self, output_rows) -> None:
+        """
+        Ensure output_rows is converted to a pandas DataFrame if it's currently
+        a list
+        """
         if isinstance(output_rows, list):
             df = pd.DataFrame(output_rows)
         else:

@@ -2,8 +2,6 @@
 # +---------------------------------------------------------------------------+
 # |                               GEMINI MODEL                                |
 # +---------------------------------------------------------------------------+
-# Gemini API Safety Settings
-
 
 # Python Libraries
 from abc import ABC, abstractmethod

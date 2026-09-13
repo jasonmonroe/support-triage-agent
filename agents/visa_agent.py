@@ -34,33 +34,6 @@ class VisaAgent(SupportAgent):
             query_str=query_str, company=self.company
         )
 
-    def _assess_risk(self, request: str) -> str:
-        """
-        Overrides SupportAgent._assess_risk(). The base class's global
-        CRITICAL_RISK_TERMS/HIGH_RISK_TERMS lists include "fraud" and
-        "unauthorized" — for Claude or HackerRank those words almost
-        always mean "escalate, no KB article could cover this." For Visa
-        they show up in tickets the KB is specifically designed to
-        answer (e.g. "my card was stolen, what do I do" has a fully
-        documented process with phone numbers). This override should
-        distinguish "reporting a known incident via a documented
-        process" (answerable, not automatically high-risk) from
-        "disputing/contesting a specific charge's legitimacy" or
-        requesting a policy exception (still needs escalation) — likely
-        by checking for dispute-specific language rather than treating
-        every fraud/unauthorized mention the same way the base class
-        does.
-
-        Input:
-            request (str): the ticket's issue text (same input the base
-                class's version takes).
-
-        Output:
-            str — one of the Risk enum values (low/high/critical), same
-            contract as SupportAgent._assess_risk().
-        """
-        pass
-
     def _verify_grounded_response(self, draft: dict, documents: list) -> bool:
         """Overrides base verification to add PCI-DSS compliance and financial policy checks."""
 
@@ -100,7 +73,9 @@ class VisaAgent(SupportAgent):
         compliance_response = self._model.get_response(
             system_prompt, self.row_index
         )
-        log_chat_transcript("VISA_COMPLIANCE_CHECK", compliance_response)
+        log_chat_transcript(
+            "🤖 VISA_AGENT", f"Visa Compliance Check: {compliance_response}"
+        )
 
         if not compliance_response or not isinstance(
             compliance_response, dict

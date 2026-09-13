@@ -55,8 +55,6 @@ class PromptBuilder:
             if key not in ["document_chunks", "row_index"] and value:
                 ticket_dict[key] = value
 
-        log_chat_transcript("PROMPT_BUILDER", ticket_dict)
-
         return {"ticket": ticket_dict}
 
     def _get_retrieved_context_data(self, document_chunks: list) -> dict:
@@ -71,8 +69,8 @@ class PromptBuilder:
         if len(document_chunks) == 0:
             return {}
 
+        # Passing a list to 'document' creates multiple <document> tags
         documents_dict = {
-            # Passing a list to 'document' creates multiple <document> tags
             "document": [
                 {
                     "@source": document.metadata["source"],
@@ -85,7 +83,5 @@ class PromptBuilder:
                 for document, _score in document_chunks
             ]
         }
-
-        log_chat_transcript("PROMPT_BUILDER", documents_dict)
 
         return {"retrieved_context": documents_dict}

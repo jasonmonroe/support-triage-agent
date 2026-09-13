@@ -53,7 +53,7 @@ class DocumentHandler:
         file_order = 1
         for company, company_list in self._md_files.items():
             for company_file_order, company_dict in enumerate(company_list):
-                # Get metadata for document creation
+                # Get metadata for document creation and  Decode HTML.
                 content = company_dict.get("content") or ""
                 content = html.unescape(content)
                 metadata = meta.extract(
@@ -132,7 +132,6 @@ class DocumentHandler:
             for idx, chunk in enumerate(sub_splits):
                 chunk.metadata.update(document.metadata)
                 chunk.metadata["chunk_idx"] = idx
-                # OLD CODE: chunk.id = f"{document.metadata.get('checksum')}::{idx}"
                 chunks.append(chunk)
 
             if checksum:
@@ -177,7 +176,6 @@ class DocumentHandler:
         # This will display all documents or one particular one by file_order
         document_body = ""
         document_body += f"\n# --- 🗃️ Showing {len(docs)} Documents 🗃️ --- #\n"
-        # print(f"\n# --- 🗃️ Showing {len(docs)} Documents 🗃️ --- #")
         for i, doc in enumerate(docs):
             document_body += f"\n\t---- 📄 Document: {i + 1} ----\n"
 
@@ -186,60 +184,8 @@ class DocumentHandler:
                     f"\n\t{key.title().replace('_', ' ')}: {value}"
                 )
 
-            # print(f"\n\t---- 📄 Document: {i + 1} ----")
-
-            """
-            @TODO - this commented out code will be erased later! Ignore for now
-            print("\t\tSource:", doc.metadata.get("source", "Unknown"))
-            print(
-                "\t\tTitle",
-                doc.metadata.get("title", "Unknown Title"),
-            )
-            print("\t\tCompany:", doc.metadata.get("company", "Unknown"))
-            print(
-                "\t\tProduct Area:",
-                doc.metadata.get("product_area", "Unknown"),
-            )
-
-            print("\t\tFile Order:", doc.metadata.get("file_order", "Unknown"))
-            print("\t\tPage Content:", doc.page_content[:1024])
-            """
-            # print(f"\t+--- Document: {i + 1} ---+")
             document_body += f"\n\t+--- Document: {i + 1} ---+\n"
 
             log_chat_transcript("DOCUMENT_HANDLE: PROFILE", document_body)
 
         print("\n")
-
-    """
-    # @TODO - may not need since we're not using a retriver.  Will resarch later!
-    @staticmethod
-    def metadata_field_info() -> list:
-        return [
-            AttributeInfo(
-                name="company",
-                description="The company/organization associated with the support documentation (e.g., 'claude', 'visa', 'hackathon').",
-                type="string",
-            ),
-            AttributeInfo(
-                name="product_area",
-                description="The functional product category or domain (e.g., 'connectors', 'api_and_credits', 'claude_code', 'prompt_design').",
-                type="string",
-            ),
-            AttributeInfo(
-                name="doc_title",
-                description="The main title of the support documentation article.",
-                type="string",
-            ),
-            AttributeInfo(
-                name="source",
-                description="The exact local file path of the source Markdown document.",
-                type="string",
-            ),
-            AttributeInfo(
-                name="chunk_idx",
-                description="Zero-based index integer of the document chunk.",
-                type="integer",
-            ),
-        ]
-    """

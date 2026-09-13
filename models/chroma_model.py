@@ -45,8 +45,6 @@ class ChromaModel(GeminiModel):
         os.environ["CHROMA_SERVER_NO_TELEMETRY"] = CHROMA_SERVER_NO_TELEMETRY
 
         self.reload()
-        # self._client = self._load_client()
-        # self.vector_storage = self._get_vector_storage()
 
     def _load_client(self) -> chromadb.PersistentClient:
         return chromadb.PersistentClient(

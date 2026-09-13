@@ -4,7 +4,6 @@
 # +---------------------------------------------------------------------------+
 
 # Python Libraries
-
 import json
 from abc import ABC
 
@@ -152,34 +151,6 @@ class SupportAgent(ABC):
         query = f"{subject}Issue: {self.issue}".strip()
 
         return self._query(query)
-
-    # @TODO - not in use.  Research to see if this method is needed.
-    def ground(self, documents: list) -> None:
-        """
-        Decide reply-vs-escalate using the risk-based decision plus retrieval
-        confidence: even a low-risk ticket gets escalated if nothing in the
-        knowledge base grounds an answer, so the LLM is never asked to answer
-        ungrounded. Also lifts product_area from the top-matching chunk's
-        metadata rather than asking the LLM to guess it freehand.
-        """
-
-        self.status = self.make_decision(self.issue)
-
-        if self.status == Status.ESCALATED:
-            self.justification = (
-                f"Escalated: ticket matched '{self._risk_level}' risk signals."
-            )
-            return
-
-        if not documents:
-            self.status = Status.ESCALATED
-            self.justification = (
-                f"{Status.ESCALATED}: no knowledge base match found to ground a"
-                " response."
-            )
-            return
-
-        self.product_area = documents[0].metadata.get("product_area")
 
     def export(self, ticket_columns: list) -> dict:
         class_dict = self.__dict__
@@ -559,7 +530,7 @@ class SupportAgent(ABC):
         )
 
         log_chat_transcript(
-            "SUPPORT_AGENT", f"Verify Grounded Response: {system_prompt}"
+            "SUPPORT_AGENT", f"Verify Grounded System Prompt: {system_prompt}"
         )
 
         grounded_response = self._model.get_response(
@@ -696,8 +667,3 @@ class SupportAgent(ABC):
             self.justification = (
                 f"Answered using grounded documentation: '{reasoning}'."
             )
-
-    """
-    def _is_company(self, company: str) -> bool:
-        return any(company == c.value for c in Company)
-    """
