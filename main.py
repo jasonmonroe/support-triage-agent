@@ -92,7 +92,6 @@ def run_main_pipeline(args: dict) -> bool:
     # Process the tickets 🚩
     output_rows = run_process_tickets_pipeline(args, dataset, chroma_model)
     sys.exit(0)
-    log_chat_transcript("MAIN_PIPELINE", f"Output Rows: {output_rows}.")
 
     # Saving output rows to file
     # data_handle.save_data(output_rows)

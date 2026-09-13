@@ -50,12 +50,10 @@ class PromptBuilder:
         ticket_dict = {
             "@id": dataset.get("row_index"),
         }
+
         for key, value in dataset.items():
             if key not in ["document_chunks", "row_index"] and value:
-                print(f"key -> {key}")
-                print(f"value -> {value[:1024]}")
                 ticket_dict[key] = value
-                print(f"ticket_dict[{key}] has a value...")
 
         log_chat_transcript("PROMPT_BUILDER", ticket_dict)
 
@@ -87,5 +85,7 @@ class PromptBuilder:
                 for document, _score in document_chunks
             ]
         }
+
+        log_chat_transcript("PROMPT_BUILDER", documents_dict)
 
         return {"retrieved_context": documents_dict}

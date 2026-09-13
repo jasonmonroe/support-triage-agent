@@ -698,5 +698,7 @@ class SupportAgent(ABC):
                 f"Answered using grounded documentation: '{reasoning}'."
             )
 
+    """
     def _is_company(self, company: str) -> bool:
         return any(company == c.value for c in Company)
+    """

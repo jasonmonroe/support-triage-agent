@@ -6,7 +6,6 @@
 import inspect
 import os
 import random
-import sys
 import time
 
 # Local Libraries
@@ -358,10 +357,5 @@ def run_process_tickets_pipeline(
             )
 
             output_rows.append(response)
-        print("DBG: Breaking after first iter!")
-        break
-
-    print("sys.exit(0) Exiting program...")
-    sys.exit(0)
 
     return output_rows

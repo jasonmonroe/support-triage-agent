@@ -57,7 +57,7 @@ class DataHandler:
                 + len(self.md_files["hackerrank"])
                 + len(self.md_files["visa"])
             )
-            log_chat_transcript("DATA_HANDLER: MARKDOWN FILES", self.md_files)
+            # log_chat_transcript("DATA_HANDLER: MARKDOWN FILES", self.md_files)
 
     def _load_data(self, use_sample: bool) -> None:
         """
@@ -245,6 +245,8 @@ class DataHandler:
         """
         Saves the data.
         """
+
+        log_chat_transcript("DATA_HANDLER", f"CSV Data: {csv_data}.")
 
         log_chat_transcript(
             "DATA_HANDLER", f"--- 💾 Saving data to {OUTPUT_FILE}."

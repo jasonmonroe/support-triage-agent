@@ -320,7 +320,7 @@ def sum_bytes_in_dir(dir_path: str) -> int:
     root = Path(dir_path)
 
     for path in root.rglob("*"):
-        if path.is_file():
+        if path.is_file() and path.name != "index.md":
             try:
                 total += path.stat().st_size
             except OSError:

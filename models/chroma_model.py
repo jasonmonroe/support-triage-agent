@@ -108,10 +108,11 @@ class ChromaModel(GeminiModel):
         # curr:  Chunks: 10,433, MD Files: 770
         chunk_count = len(chunks)
         vector_chunks = 0
+        j = 0
         for i in range(0, chunk_count, batch_size):
             start_time = start_timer()
             log_chat_transcript(
-                "CHROMA_MODEL", get_progress_bar(i, chunk_count)
+                "CHROMA_MODEL", get_progress_bar(j, chunk_count)
             )
             chunk_ids = self.vector_storage.add_documents(
                 chunks[i : i + batch_size]
@@ -120,6 +121,9 @@ class ChromaModel(GeminiModel):
 
             print(f"{vector_chunks} vector chunks added so far.")
             show_timer(start_time)
+
+            if i == batch_size:
+                j += 1
 
         return vector_chunks == chunk_count
 
