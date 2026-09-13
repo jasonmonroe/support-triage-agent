@@ -12,7 +12,12 @@ import time
 # Local Libraries
 from models.chroma_model import ChromaModel
 from models.support_agent_model import SupportAgentModel
-from src.constants import CHROMA_DB_DIR, HF_BATCH_SIZE, PAUSE_TIMER
+from src.constants import (
+    CHROMA_DB_DIR,
+    HF_BATCH_SIZE,
+    INGEST_LIMIT_RETRIES,
+    PAUSE_TIMER,
+)
 from src.document_handler import DocumentHandler
 from src.enums import RagStatus
 from src.ticket_analyzer import TicketAnalyzer
@@ -71,11 +76,17 @@ def run_rag_pipeline(
         start_time = start_timer()
         log_chat_transcript(
             "RAG_INGESTION",
-            (
-                f"➕ Adding {len(document_chunks)} 🗃️ vector document chunks ",
-                f"using a batch size of {HF_BATCH_SIZE}...",
-            ),
+            f"➕ Adding {len(document_chunks)} 🗃️ vector document chunks using a batch size of {HF_BATCH_SIZE}...",
         )
+
+        # @TODO output first batch to see what it looks like
+        log_chat_transcript(
+            "DBG: RAG_INGESTION: 1st CHUNK", document_chunks[0]
+        )
+        log_chat_transcript(
+            "DBG: RAG_INGESTION: 2nd CHUNK", document_chunks[0]
+        )
+        # @TODO
 
         vector_status = chroma_model.add_vector_documents(document_chunks)
         show_timer(start_time)
@@ -170,12 +181,8 @@ def run_rag_pipeline(
 
                 return RagStatus.PARTIAL
 
-            elif collection_count > chunk_count:
-                raise ValueError(
-                    f"🚨 ERROR: How can there be more collections {collection_count} than document chunks {document_count}?!",
-                )
-            else:
-                print("UNMET CONDITION.  Investigate!")
+            print("WARNING: Returning no RAG status!")
+            return None
 
     if data_refresh:
         # Refreshing unconditionally — no count check needed, and no
@@ -209,7 +216,7 @@ def run_rag_pipeline(
     input_resp = None
     itr = 1
 
-    while rag_status != RagStatus.SUCCESS and input_resp != "Y":
+    while rag_status != RagStatus.SUCCESS and itr < INGEST_LIMIT_RETRIES:
         input_message = (
             f"\nIteration: {itr}: ",
             f"Your {chroma_model.collection_name} collection status is ",
@@ -229,6 +236,7 @@ def run_rag_pipeline(
             log_chat_transcript(
                 "RAG_PIPELINE", "😦 You chose `No`.  Exiting RAG."
             )
+            break
         itr += 1
 
 

@@ -49,12 +49,21 @@ class DocumentHandler:
 
         # Convert raw text into Langchain document objects
         documents = []
+        file_order = 1
         for company, company_list in self._md_files.items():
-            for file_order, company_dict in enumerate(company_list):
+            for company_file_order, company_dict in enumerate(company_list):
                 # Get metadata for document creation
-                content = company_dict.get("content")
-                metadata = meta.extract(company, file_order, company_dict)
-                log_chat_transcript("DOCUMENT_HANDLER: METADATA", metadata)
+                content = company_dict.get("content") or ""
+                metadata = meta.extract(
+                    company, company_file_order + 1, file_order, company_dict
+                )
+                log_chat_transcript(
+                    (
+                        "DOCUMENT_HANDLER: METADATA",
+                        f"{file_order}: {company}-{company_file_order + 1}",
+                    ),
+                    metadata,
+                )
 
                 # Strip YAML frontmatter — MetadataExtractor already
                 # captured it as structured metadata above, so leaving it
@@ -65,6 +74,7 @@ class DocumentHandler:
                 # Create Document
                 document = self._create(body, metadata)
                 documents.append(document)
+                file_order += 1
 
         # Configure text splitters
         self._chunks = self._create_chunks(documents)
@@ -106,6 +116,15 @@ class DocumentHandler:
             for idx, chunk in enumerate(sub_splits):
                 chunk.metadata.update(document.metadata)
                 chunk.metadata["chunk_idx"] = idx
+
+                # Deterministic per-chunk ID so re-ingesting the same
+                # source files upserts existing vectors instead of
+                # duplicating them (see ChromaModel.add_vector_documents).
+                # Uses `checksum` (content-derived) rather than `id`
+                # (a fresh random uuid4 on every run — see
+                # MetadataExtractor.extract) so the ID is actually stable
+                # across runs.
+                chunk.id = f"{document.metadata.get('checksum')}::{idx}"
                 chunks.append(chunk)
 
         return chunks

@@ -103,7 +103,8 @@ def parse_args(command_line_str: str) -> dict:
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    os.remove(CHAT_TRANSCRIPT_FILE)
+    if os.path.exists(CHAT_TRANSCRIPT_FILE):
+        os.remove(CHAT_TRANSCRIPT_FILE)
 
     show_banner(APP_NAME)
 

@@ -101,8 +101,9 @@ class ChromaModel(GeminiModel):
         off gracefully.
         """
 
-        # prev: 11,450 chunks, 774 md files
-        # curr: 10,675 chunks, 775 md files?
+        # prev1: Chunks: 11,450, MD Files: 774
+        # prev:  Chunks: 10,675, MD Files: 775
+        # curr:  Chunks: 10,433, MD Files: 770
         chunk_cnt = len(chunks)
         cnt = 0
         for i in range(0, chunk_cnt, batch_size):
@@ -113,7 +114,10 @@ class ChromaModel(GeminiModel):
                 chunks[i : i + batch_size]
             )
 
-        print(f"add_vector_documents() cnt = {cnt}")
+            if i == batch_size:
+                print(f"\nDBG: Next Batch, Iter:{cnt}")
+
+        print(f"DBG: add_vector_documents() cnt = {cnt}")
         return True
         # return True if cnt >= chunk_cnt else False
 

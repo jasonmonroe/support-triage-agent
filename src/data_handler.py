@@ -78,14 +78,16 @@ class DataHandler:
         self.support_tickets = pd.read_csv(filepath)
         self._filepath = filepath
 
+    """
     # @TODO - defunct
     def _compact_md_files(self, dir) -> None:
-        """This version compacts all markdown files together"""
+        # This version compacts all markdown files together
         mds_dir = Path(dir)
         md_files = list(mds_dir.rglob("*.md"))
         self.md_files = [p.read_text(encoding="utf-8") for p in md_files]
         log_chat_transcript("COMPACT_MARKDOWN_FILES", self.md_files)
 
+    
     # @TODO - defunct
     def _load_md_files_dbg(self, dir) -> list:
         root_dir = Path(dir)
@@ -110,6 +112,7 @@ class DataHandler:
 
         print("total files:", len(md_files))
         return md_files
+    """
 
     def _load_md_files(self, dir) -> list:
         root_dir = Path(dir)
@@ -117,7 +120,9 @@ class DataHandler:
 
         md_files = []
         for file_path in root_dir.rglob("*"):
-            if file_path.is_file():
+            # index.md is a per-company table of contents, not an actual
+            # support article — skip it so it doesn't pollute the RAG corpus.
+            if file_path.is_file() and file_path.name != "index.md":
                 file_dict = self._parse_md_file(target, file_path)
                 md_files.append(file_dict)
 
@@ -166,7 +171,7 @@ class DataHandler:
         df = self.support_tickets
         df.columns = df.columns.str.strip()
 
-        # 2. Vectorized cleaning for text/object columns
+        # Vectorized cleaning for text/object columns
         text_cols = df.select_dtypes(include=["object", "string"]).columns
 
         for col in text_cols:

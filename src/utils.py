@@ -207,7 +207,7 @@ def get_progress_bar(idx: int, total: int, batch_size: int = 0) -> str:
     """
     print("")
 
-    i_empty, i_full = " ☑️ ", " ✅️ "
+    i_empty, i_full = "☑️ ", "✅️ "
     completion_pct = ((idx + 1) / total) * 100
 
     graphic = ""
@@ -271,7 +271,6 @@ def pretty_dict(d: dict, indent: int = 4, stage: str = "") -> str:
         indent=indent,
         default=lambda o: o.value if isinstance(o, Enum) else str(o),
     )
-    log_chat_transcript(stage, pretty)
 
     return pretty
 
