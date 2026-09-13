@@ -34,16 +34,19 @@ import os
 import sys
 import warnings
 
-# Local Libraries
 from models.chroma_model import ChromaModel
 from pipelines.main import run_process_tickets_pipeline, run_rag_pipeline
 from src.constants import (
     APP_NAME,
     ARGS_LIST,
     CHAT_TRANSCRIPT_FILE,
+    CHROMA_COLL_NAME,
     OUTPUT_FILE,
 )
 from src.data_handler import DataHandler
+
+# Local Libraries
+from src.enums import RagStatus
 from src.utils import (
     banner,
     gen_run_id,
@@ -69,14 +72,16 @@ def run_main_pipeline(args: dict) -> bool:
         show_timer(start_time)
 
         # Check if rag was successful
-        if not rag_status:
-            log_chat_transcript("RAG_STATUS", "⚠️ No documents were ingested.")
+        if rag_status == RagStatus.FAIL:
+            log_chat_transcript(
+                "MAIN_PIPELINE", "⚠️ No documents were ingested."
+            )
             return False
     else:
         collection_count = chroma_model.get_collection_count()
         log_chat_transcript(
             "MAIN_PIPELINE",
-            f"🚩 RAG injection flag NOT detected.  Collection count: {collection_count}.",
+            f"🚩 RAG injection flag NOT detected.  `{CHROMA_COLL_NAME}` collection count: {collection_count}.",
         )
 
         if collection_count == 0:
@@ -85,7 +90,7 @@ def run_main_pipeline(args: dict) -> bool:
                 "🚨 ERROR: There are no collections. Run again with the --rag flag. 🚨",
             )
             return False
-
+    sys.exit(0)
     # Process the tickets 🚩
     output_rows = run_process_tickets_pipeline(args, dataset, chroma_model)
     sys.exit(0)

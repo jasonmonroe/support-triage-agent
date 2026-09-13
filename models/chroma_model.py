@@ -28,6 +28,8 @@ from src.utils import (
     format_bytes,
     get_progress_bar,
     log_chat_transcript,
+    show_timer,
+    start_timer,
     sum_bytes_in_dir,
 )
 
@@ -42,7 +44,6 @@ class ChromaModel(GeminiModel):
         super().__init__()
         os.environ["CHROMA_SERVER_NO_TELEMETRY"] = CHROMA_SERVER_NO_TELEMETRY
 
-        self.collection_name = CHROMA_COLL_NAME
         self.reload()
         # self._client = self._load_client()
         # self.vector_storage = self._get_vector_storage()
@@ -74,7 +75,7 @@ class ChromaModel(GeminiModel):
         return Chroma(
             client=self._client,
             embedding_function=self._get_hf_embeddings(),
-            collection_name=self.collection_name,
+            collection_name=CHROMA_COLL_NAME,
         )
 
     def _get_hf_embeddings(self) -> HuggingFaceEmbeddings:
@@ -119,6 +120,7 @@ class ChromaModel(GeminiModel):
 
             print(f"{vector_chunks} vector chunks added so far.")
             show_timer(start_time)
+
         return vector_chunks == chunk_count
 
     def get_collection_count(self) -> int:
@@ -144,7 +146,7 @@ class ChromaModel(GeminiModel):
         if company and company.strip().lower() != Company.NONE.lower():
             kwargs["filter"] = {"company": company.lower()}
 
-        log_chat_transcript("CHROMA_MODEL: QUERY", f"💬 {query_str}")
+        log_chat_transcript("CHROMA_MODEL", f"QUERY: 💬 {query_str}")
 
         return self.vector_storage.similarity_search_with_score(
             query=query_str, search_type="similarity", search_kwargs=kwargs
@@ -166,13 +168,12 @@ class ChromaModel(GeminiModel):
         dir_size = format_bytes(sum_bytes_in_dir(target_db_dir))
         log_chat_transcript(
             "CHROMA_MODEL",
-            f"🗑️ Resetting collection {self.collection_name} "
-            f"({target_db_dir}, {dir_size})...",
+            f"🗑️ Resetting collection {CHROMA_COLL_NAME} ({target_db_dir}, {dir_size})...",
         )
 
         self._client.reset()
 
         log_chat_transcript(
             "CHROMA_MODEL",
-            f"📁 Collection `{self.collection_name}` has been reset and is ready for use.",
+            f"📁 Collection `{CHROMA_COLL_NAME}` has been reset and is ready for use.",
         )

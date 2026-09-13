@@ -13,6 +13,7 @@ import time
 from models.chroma_model import ChromaModel
 from models.support_agent_model import SupportAgentModel
 from src.constants import (
+    CHROMA_COLL_NAME,
     CHROMA_DB_DIR,
     HF_BATCH_SIZE,
     INGEST_LIMIT_RETRIES,
@@ -66,10 +67,8 @@ def run_rag_pipeline(
         document_count = doc_handle.count_documents()
 
         log_chat_transcript(
-            "RAG_INGESTION", f"🗄️ DOCUMENT_COUNT: {document_count}."
-        )
-        log_chat_transcript(
-            "RAG_INGESTION", f"🗄️ CHUNK_COUNT: {doc_handle.count_chunks()}."
+            "RAG_INGESTION",
+            f"🗄️ DOCUMENT_COUNT: {document_count}\n🗄️ CHUNK_COUNT: {doc_handle.count_chunks()}",
         )
 
         start_time = start_timer()
@@ -108,7 +107,8 @@ def run_rag_pipeline(
         # Get new collection count
         new_collection_count = chroma_model.get_collection_count()
         log_chat_transcript(
-            "RAG_INGESTION", f"ℹ️ New collection count: {new_collection_count}."
+            "RAG_INGESTION",
+            f"ℹ️  `{CHROMA_COLL_NAME}` New collection count: {new_collection_count}",
         )
 
         counts = {
@@ -128,24 +128,24 @@ def run_rag_pipeline(
 
         log_chat_transcript(
             "RAG_INGESTION",
-            f"ℹ️ {chroma_model.collection_name} Collection Count: {collection_count}.",
+            f"ℹ️  `{CHROMA_COLL_NAME}` Collection Count: {collection_count}",
         )
 
         if collection_count == 0:
             log_chat_transcript(
                 "RAG_INGESTION",
-                f"🚨 ERROR: No collections found for {chroma_model.collection_name}.",
+                f"🚨 ERROR: No collections found for {CHROMA_COLL_NAME}.",
             )
 
             return RagStatus.FAIL
 
-        # Verify on initialization
+        # ℹ️ Note: Verify on initialization.  Assume refresh flag is on or it's empty!
         if chunk_count is None:
             # SUCCESS
             if collection_count > document_count:
                 log_chat_transcript(
                     "RAG_INJECTION",
-                    "Collections exceed the amount of documents so we can presume it's a success.",
+                    "ℹ️ --- No Refresh ---\nCollections exceed the amount of documents so we can presume it's a success.",
                 )
 
                 return RagStatus.SUCCESS
@@ -166,7 +166,7 @@ def run_rag_pipeline(
             if collection_count == chunk_count:
                 log_chat_transcript(
                     "RAG_INGESTION",
-                    f"✅ Success! All document (chunks) {document_count} were collected.",
+                    f"✅ Success! All document (chunks) {collection_count} were collected.",
                 )
 
                 return RagStatus.SUCCESS
@@ -191,9 +191,9 @@ def run_rag_pipeline(
         log_chat_transcript(
             "RAG_PIPELINE", "🗑️ Wiping database before ingesting..."
         )
+
+        # Rebuild the LangChain Chroma wrapper against the now-empty collection.
         chroma_model.delete()
-        # Rebuild the LangChain Chroma wrapper against the now-empty
-        # collection.
         chroma_model.reload()
 
         rag_status = _ingest(chroma_model, doc_handle)
@@ -218,7 +218,7 @@ def run_rag_pipeline(
     while rag_status != RagStatus.SUCCESS and itr < INGEST_LIMIT_RETRIES:
         input_message = (
             f"\nIteration: {itr}: ",
-            f"Your {chroma_model.collection_name} collection status is ",
+            f"Your {CHROMA_COLL_NAME} collection status is ",
             f"{rag_status}.  Do you want to ingest again? Y or N? _ ",
         )
 
@@ -238,11 +238,16 @@ def run_rag_pipeline(
             break
         itr += 1
 
+    if itr >= INGEST_LIMIT_RETRIES:
+        log_chat_transcript(
+            "RAG_PIPELINE", "Max iterations exhausted for RAG."
+        )
+
 
 def run_process_tickets_pipeline(
     args: dict, dataset: dict, chroma_model
 ) -> list:
-    print("Exiting line 245")
+    print("Exiting line 250")
     sys.exit(0)
     banner(inspect.currentframe())
 

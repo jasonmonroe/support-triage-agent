@@ -155,7 +155,7 @@ class DocumentHandler:
                 return None
 
             docs = [doc]
-            print("\n\t 📄 Document:  ----")
+            # print("\n\t 📄 Document:  ----")
 
         # Display if no documents to show...
         if not docs:
@@ -165,13 +165,15 @@ class DocumentHandler:
 
         # This will display all documents or one particular one by file_order
         document_body = ""
-        document_body += f"\n# --- 🗃️ Showing {len(docs)} Documents 🗃️ --- #"
+        document_body += f"\n# --- 🗃️ Showing {len(docs)} Documents 🗃️ --- #\n"
         # print(f"\n# --- 🗃️ Showing {len(docs)} Documents 🗃️ --- #")
         for i, doc in enumerate(docs):
-            document_body += f"\n\t---- 📄 Document: {i + 1} ----"
+            document_body += f"\n\t---- 📄 Document: {i + 1} ----\n"
 
             for key, value in doc.metadata.items():
-                document_body += f"{key.title().replace('_', ' ')}: {value}"
+                document_body += (
+                    f"\n\t{key.title().replace('_', ' ')}: {value}"
+                )
 
             # print(f"\n\t---- 📄 Document: {i + 1} ----")
 
@@ -198,27 +200,33 @@ class DocumentHandler:
 
         print("\n")
 
+    # @TODO - may not need since we're not using a retriver.  Will resarch later!
     @staticmethod
     def metadata_field_info() -> list:
         return [
             AttributeInfo(
                 name="company",
-                description="Name of company with the ticket issue.",
+                description="The company/organization associated with the support documentation (e.g., 'claude', 'visa', 'hackathon').",
                 type="string",
             ),
             AttributeInfo(
                 name="product_area",
-                description="Company domain/category based on knowledge base.",
+                description="The functional product category or domain (e.g., 'connectors', 'api_and_credits', 'claude_code', 'prompt_design').",
+                type="string",
+            ),
+            AttributeInfo(
+                name="doc_title",
+                description="The main title of the support documentation article.",
                 type="string",
             ),
             AttributeInfo(
                 name="source",
-                description="Full filepath of the markdown file.",
+                description="The exact local file path of the source Markdown document.",
                 type="string",
             ),
             AttributeInfo(
-                name="chunck_idx",
-                description="Document chunk idenfifier for the markdown file.",
+                name="chunk_idx",
+                description="Zero-based index integer of the document chunk.",
                 type="integer",
             ),
         ]
