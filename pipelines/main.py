@@ -61,7 +61,6 @@ def run_rag_pipeline(
     def _ingest(
         chroma_model: ChromaModel, doc_handle: DocumentHandler
     ) -> RagStatus:
-        stage = "rag_ingestion".upper()
 
         document_chunks = doc_handle.process()
         document_count = doc_handle.count_documents()
@@ -91,9 +90,9 @@ def run_rag_pipeline(
         vector_status = chroma_model.add_vector_documents(document_chunks)
         show_timer(start_time)
 
-        # log_chat_transcript(
-        #    "RAG_INGESTION", f"Vector Status: {vector_status}."
-        # )
+        log_chat_transcript(
+            "RAG_INGESTION", f"Vector Status: {vector_status}."
+        )
 
         chroma_db_dir_size = format_bytes(
             sum_bytes_in_dir(os.path.abspath(CHROMA_DB_DIR))
@@ -161,7 +160,7 @@ def run_rag_pipeline(
                 return RagStatus.PARTIAL
 
         else:
-            # Verify after ingestion
+            # --- Verify after ingestion --- #
 
             # SUCCESS: Collections match the chunks
             if collection_count == chunk_count:
@@ -185,16 +184,16 @@ def run_rag_pipeline(
             return None
 
     if data_refresh:
-        # Refreshing unconditionally — no count check needed, and no
-        # ChromaModel instance needed yet. Wipe first so the client we
-        # build next never opens a connection that a later delete could
-        # invalidate.
+        # Reset via the client's own reset() API (see ChromaModel.delete)
+        # rather than wiping chroma_db/ on disk — the Rust-backed
+        # persistent client doesn't tolerate its files disappearing out
+        # from under it.
         log_chat_transcript(
             "RAG_PIPELINE", "🗑️ Wiping database before ingesting..."
         )
-        ChromaModel.delete()
-        # Reconnect — the directory was just wiped out from under this
-        # instance's existing client/collection.
+        chroma_model.delete()
+        # Rebuild the LangChain Chroma wrapper against the now-empty
+        # collection.
         chroma_model.reload()
 
         rag_status = _ingest(chroma_model, doc_handle)
@@ -243,6 +242,8 @@ def run_rag_pipeline(
 def run_process_tickets_pipeline(
     args: dict, dataset: dict, chroma_model
 ) -> list:
+    print("Exiting line 245")
+    sys.exit(0)
     banner(inspect.currentframe())
 
     tickets_df = dataset.get("support_tickets")

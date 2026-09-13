@@ -6,7 +6,6 @@ from __future__ import annotations
 # +---------------------------------------------------------------------------+
 # Python Libraries
 import os
-import shutil
 
 import chromadb
 
@@ -22,7 +21,6 @@ from src.constants import (
     CHROMA_DB_DIR,
     CHROMA_RESULT_CNT,
     CHROMA_SERVER_NO_TELEMETRY,
-    DOCUMENT_DIR_PERM,
     HF_BATCH_SIZE,
 )
 from src.enums import Company
@@ -50,7 +48,10 @@ class ChromaModel(GeminiModel):
         # self.vector_storage = self._get_vector_storage()
 
     def _load_client(self) -> chromadb.PersistentClient:
-        return chromadb.PersistentClient(path=os.path.abspath(CHROMA_DB_DIR))
+        return chromadb.PersistentClient(
+            path=os.path.abspath(CHROMA_DB_DIR),
+            settings=chromadb.Settings(allow_reset=True),
+        )
 
     def reload(self) -> None:
         """
@@ -104,22 +105,21 @@ class ChromaModel(GeminiModel):
         # prev1: Chunks: 11,450, MD Files: 774
         # prev:  Chunks: 10,675, MD Files: 775
         # curr:  Chunks: 10,433, MD Files: 770
-        chunk_cnt = len(chunks)
-        cnt = 0
-        for i in range(0, chunk_cnt, batch_size):
+        chunk_count = len(chunks)
+        vector_chunks = 0
+        for i in range(0, chunk_count, batch_size):
+            start_time = start_timer()
             log_chat_transcript(
-                "CHROMA_MODEL", get_progress_bar(i, chunk_cnt, batch_size)
+                "CHROMA_MODEL", get_progress_bar(i, chunk_count, batch_size)
             )
-            cnt += self.vector_storage.add_documents(
+            chunk_ids = self.vector_storage.add_documents(
                 chunks[i : i + batch_size]
             )
+            vector_chunks += len(chunk_ids)
 
-            if i == batch_size:
-                print(f"\nDBG: Next Batch, Iter:{cnt}")
-
-        print(f"DBG: add_vector_documents() cnt = {cnt}")
-        return True
-        # return True if cnt >= chunk_cnt else False
+            print(f"{vector_chunks} vector chunks added so far.")
+            show_timer(start_time)
+        return vector_chunks == chunk_count
 
     def get_collection_count(self) -> int:
         """Returns the number of documents currently in the vector collection."""
@@ -150,66 +150,29 @@ class ChromaModel(GeminiModel):
             query=query_str, search_type="similarity", search_kwargs=kwargs
         )
 
-    @staticmethod
-    def delete() -> None:
+    def delete(self) -> None:
         """
-        Purges the target database directory (db/) to reset ChromaDB states.
-        Static because it's pure filesystem work — it never touches a
-        client/collection — which lets callers wipe the directory *before* any
-        ChromaModel instance (and its live connection) exists, avoiding a stale
-        connection pointed at files that no longer exist.
+        Resets the persistent Chroma store via the client's own `reset()`
+        API instead of deleting chroma_db/ on disk. The Rust-backed
+        persistent client (chromadb>=0.6) manages its own SQLite
+        connections/locks internally; wiping the directory's files out
+        from under it and pointing a new client at the same path left it
+        in an inconsistent state ("attempt to write a readonly database")
+        instead of a clean slate. `reset()` requires `allow_reset=True`
+        on the client's Settings — see `_load_client`.
         """
         target_db_dir = os.path.abspath(CHROMA_DB_DIR)
 
+        dir_size = format_bytes(sum_bytes_in_dir(target_db_dir))
         log_chat_transcript(
             "CHROMA_MODEL",
-            f"🗑️ Wiping Database directory: {target_db_dir}...",
+            f"🗑️ Resetting collection {self.collection_name} "
+            f"({target_db_dir}, {dir_size})...",
         )
 
-        if not os.path.exists(target_db_dir):
-            log_chat_transcript(
-                "CHROMA_MODEL",
-                (
-                    f"⚠️ Warning: Directory {target_db_dir} does not exist.",
-                    "Creating a fresh one now...",
-                ),
-            )
-            os.makedirs(target_db_dir, exist_ok=True)
-            os.chmod(target_db_dir, DOCUMENT_DIR_PERM)
-            return None
+        self._client.reset()
 
-        dir_size = sum_bytes_in_dir(target_db_dir)
-        dir_size = format_bytes(dir_size)
         log_chat_transcript(
-            "CHROMA_DB_SIZE", f"{target_db_dir} directory is {dir_size}."
+            "CHROMA_MODEL",
+            f"📁 Collection `{self.collection_name}` has been reset and is ready for use.",
         )
-
-        for filename in os.listdir(target_db_dir):
-            filepath = os.path.join(target_db_dir, filename)
-            try:
-                log_chat_transcript(
-                    "CHROMA_MODEL",
-                    f"Purging database artifact: {filepath}...",
-                )
-
-                if os.path.isfile(filepath) or os.path.islink(filepath):
-                    os.unlink(filepath)
-                elif os.path.isdir(filepath):
-                    shutil.rmtree(filepath)
-
-            except FileNotFoundError as e:
-                log_chat_transcript(
-                    "CHROMA_MODEL",
-                    f"🚨 Failed to wipe element path target {filepath}. Exception: {e}",
-                )
-
-        if next(os.scandir(target_db_dir), None) is None:
-            os.chmod(target_db_dir, DOCUMENT_DIR_PERM)
-            log_chat_transcript(
-                "CHROMA_MODEL",
-                f"📁 Database directory {CHROMA_DB_DIR} is empty and ready for use.",
-            )
-            log_chat_transcript(
-                "CHROMA_MODEL",
-                f"🖊️ {CHROMA_DB_DIR} privileges are set to {DOCUMENT_DIR_PERM}.\n",
-            )

@@ -116,15 +116,13 @@ class MetadataExtractor:
             if not value:
                 excluded_attrs.add(key)
 
-        return dict(
-            sorted(
-                {
-                    key: value
-                    for key, value in self.__dict__.items()
-                    if key not in excluded_attrs
-                }
-            )
-        )
+        exported_dicts = {
+            key: value
+            for key, value in self.__dict__.items()
+            if key not in excluded_attrs
+        }
+
+        return dict(sorted(exported_dicts.items()))
 
     def extract(
         self,

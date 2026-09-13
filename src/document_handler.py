@@ -176,6 +176,7 @@ class DocumentHandler:
             # print(f"\n\t---- 📄 Document: {i + 1} ----")
 
             """
+            @TODO - this commented out code will be erased later! Ignore for now
             print("\t\tSource:", doc.metadata.get("source", "Unknown"))
             print(
                 "\t\tTitle",
