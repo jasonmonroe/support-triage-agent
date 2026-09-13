@@ -102,28 +102,27 @@ class ChromaModel(GeminiModel):
         explicit retry logic that parses vendor rate limit messages and backs
         off gracefully.
         """
-
-        # prev1: Chunks: 11,450, MD Files: 774
-        # prev:  Chunks: 10,675, MD Files: 775
-        # curr:  Chunks: 10,433, MD Files: 770
         chunk_count = len(chunks)
         vector_chunks = 0
-        j = 0
-        for i in range(0, chunk_count, batch_size):
+
+        # Calculate total batches for smooth progress bar tracking
+        total_batches = (chunk_count + batch_size - 1) // batch_size
+
+        for batch_num, i in enumerate(range(0, chunk_count, batch_size)):
             start_time = start_timer()
+
+            # Update progress bar based on current batch index
             log_chat_transcript(
-                "CHROMA_MODEL", get_progress_bar(j, chunk_count)
+                "CHROMA_MODEL", get_progress_bar(batch_num, total_batches)
             )
+
             chunk_ids = self.vector_storage.add_documents(
                 chunks[i : i + batch_size]
             )
             vector_chunks += len(chunk_ids)
 
-            print(f"{vector_chunks} vector chunks added so far.")
+            print(f"{vector_chunks}/{chunk_count} vector chunks added so far.")
             show_timer(start_time)
-
-            if i == batch_size:
-                j += 1
 
         return vector_chunks == chunk_count
 

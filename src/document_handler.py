@@ -55,6 +55,7 @@ class DocumentHandler:
             for company_file_order, company_dict in enumerate(company_list):
                 # Get metadata for document creation
                 content = company_dict.get("content") or ""
+                content = html.unescape(content)
                 metadata = meta.extract(
                     company, company_file_order + 1, file_order, company_dict
                 )
@@ -204,7 +205,7 @@ class DocumentHandler:
             print("\t\tPage Content:", doc.page_content[:1024])
             """
             # print(f"\t+--- Document: {i + 1} ---+")
-            document_body += f"\t+--- Document: {i + 1} ---+\n"
+            document_body += f"\n\t+--- Document: {i + 1} ---+\n"
 
             log_chat_transcript("DOCUMENT_HANDLE: PROFILE", document_body)
 

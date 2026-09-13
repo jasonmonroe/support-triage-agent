@@ -91,10 +91,9 @@ def run_main_pipeline(args: dict) -> bool:
 
     # Process the tickets 🚩
     output_rows = run_process_tickets_pipeline(args, dataset, chroma_model)
-    sys.exit(0)
 
     # Saving output rows to file
-    # data_handle.save_data(output_rows)
+    data_handle.save_data(output_rows)
 
     return True
 
@@ -125,7 +124,7 @@ if __name__ == "__main__":
     result = run_main_pipeline(args)
 
     if result:
-        msg = f"✅️ Data saved to {OUTPUT_FILE}."
+        msg = f"✅️ Data saved to 💾 {OUTPUT_FILE}."
         log_chat_transcript("MAIN", msg)
 
     show_timer(prog_start_time)

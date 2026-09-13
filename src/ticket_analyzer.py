@@ -1,6 +1,6 @@
 # src/ticket_analyzer.py
 # +---------------------------------------------------------------------------+
-# |                                TICKET ANALYZER                                 |
+# |                               TICKET ANALYZER                             |
 # +---------------------------------------------------------------------------+
 
 # Python Libraries
@@ -14,6 +14,7 @@ from agents.claude_agent import ClaudeAgent
 from agents.hackerrank_agent import HackerrankAgent
 from agents.support_agent import SupportAgent
 from agents.visa_agent import VisaAgent
+from src.enums import Company
 from src.prompt_builder import PromptBuilder
 from src.utils import (
     log_chat_transcript,
@@ -28,6 +29,7 @@ class TicketAnalyzer:
         self._agent = None
         self._chroma_model = dataset.get("chroma_model")
         self._support_agent_model = dataset.get("model")
+        self._ticket = {}
 
     def build_prompt_by_company(
         self,
@@ -74,7 +76,9 @@ class TicketAnalyzer:
 
         # Assuming all the values are the most accurate from the retrieved
         # documents build a final prompt for final analysis.
-        agent_dataset = self._agent.export(prettify_cols(ticket_df))
+        ticket_columns = prettify_cols(ticket_df)
+        agent_dataset = self._agent.export(ticket_columns)
+        self._ticket = agent_dataset
 
         # Load Prompt Builder to get the prompt
         dataset = agent_dataset | {
@@ -98,7 +102,7 @@ class TicketAnalyzer:
         # Define company
         company = ticket_df.Company.lower()
 
-        if not company:
+        if not company or company == Company.NONE.lower():
             return SupportAgent(**agent_params)
 
         # Registry mapping company names to concrete subclass implementations
@@ -112,3 +116,14 @@ class TicketAnalyzer:
             raise ValueError(f"🚨 Unsupported company: '{company}'")
 
         return agent_mapping[company](**agent_params)
+
+    def format_output(self, response: dict) -> dict:
+        """Format response to an output row dict, overriding ticket keys with
+        LLM response values."""
+
+        output = {}
+        for key, value in self._ticket.items():
+            # Override with LLM response if the key exists in the response
+            output[key] = response[key] if key in response else value
+
+        return output

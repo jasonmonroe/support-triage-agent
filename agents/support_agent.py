@@ -183,10 +183,9 @@ class SupportAgent(ABC):
 
     def export(self, ticket_columns: list) -> dict:
         class_dict = self.__dict__
-
         export_dict = {}
         for key, value in class_dict.items():
-            if key in ticket_columns:
+            if key in ticket_columns or key == "justification":
                 export_dict[key] = value
 
         return export_dict

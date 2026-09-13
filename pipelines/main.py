@@ -247,6 +247,7 @@ def run_process_tickets_pipeline(
     args: dict, dataset: dict, chroma_model
 ) -> list:
 
+    # sys.exit(0)
     banner(inspect.currentframe())
 
     tickets_df = dataset.get("support_tickets")
@@ -260,17 +261,11 @@ def run_process_tickets_pipeline(
         }
     )
 
-    output_rows = []
-
     # --- PROCESS TICKETS --- #
+    output_rows = []
     for row in tickets_df.itertuples():
         print(f"\nrow.Index = {row.Index}")
-        if row.Index == 0:
-            # if row._______ == "________":
-            # print(f"row={row.Issue}")
-            print(f"DBG: row={row}")
-            print(f"DBG: Assembling prompt for index: {row.Index}")
-
+        if row.Index >= 0:
             """
             ┌─────────────────────────────────────────────────────────┐
             │              Input: CSV File of Tickets                 │
@@ -313,7 +308,7 @@ def run_process_tickets_pipeline(
             show_timer(start_time)
 
             # Break loop (due to no retrieved documents or any other error)
-            if prompt == "" or not prompt:
+            if not prompt or prompt == "":
                 log_chat_transcript(
                     "TICKET_PIPELINE", "😵 Prompt is empty.  Breaking loop."
                 )
@@ -331,7 +326,8 @@ def run_process_tickets_pipeline(
 
             response = support_agent_model.get_response(prompt, row.Index)
             log_chat_transcript(
-                "TICKET_PIPELINE", f"💬{prompt} \n Response: 💬{response}"
+                f"TICKET_PIPELINE ({row.Index})",
+                f"💬 Prompt\n{prompt}\n\n💬  Response\n{response}\n",
             )
 
             if not response or hasattr(response, "error"):
@@ -343,6 +339,8 @@ def run_process_tickets_pipeline(
                     ),
                 )
                 break
+
+            output_row = analyzer.format_output(response)
 
             log_chat_transcript(
                 "TICKET_PIPELINE",
@@ -356,6 +354,6 @@ def run_process_tickets_pipeline(
                 "TICKET_PIPELINE", get_progress_bar(row.Index, row_count)
             )
 
-            output_rows.append(response)
+            output_rows.append(output_row)
 
     return output_rows

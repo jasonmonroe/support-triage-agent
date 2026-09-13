@@ -11,4 +11,5 @@ __pycache__/
 .venv
 .vscode
 log.txt
+support_tickets/output.csv
 venv

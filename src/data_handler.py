@@ -241,14 +241,12 @@ class DataHandler:
         print("\n# === MARKDOWN FILES === #")
         print(f"File Count: {self.md_file_cnt}")
 
-    def save_data(self, csv_data) -> None:
-        """
-        Saves the data.
-        """
+    def save_data(self, output_rows: list) -> None:
+        # Ensure output_rows is converted to a pandas DataFrame if it's currently a list
+        if isinstance(output_rows, list):
+            df = pd.DataFrame(output_rows)
+        else:
+            df = output_rows
 
-        log_chat_transcript("DATA_HANDLER", f"CSV Data: {csv_data}.")
-
-        log_chat_transcript(
-            "DATA_HANDLER", f"--- 💾 Saving data to {OUTPUT_FILE}."
-        )
-        csv_data.to_csv(OUTPUT_FILE, index=False)
+        # Now call .to_csv() on the DataFrame
+        df.to_csv(OUTPUT_FILE, index=False)
