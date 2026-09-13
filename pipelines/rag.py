@@ -3,14 +3,29 @@
 # |                                RAG PIPELINE                               |
 # +---------------------------------------------------------------------------+
 
-
+# Python Libraries
 import inspect
+import os
+import random
 
-from constants import CHROMA_COLL_NAME, INGEST_LIMIT_RETRIES
-from document_handler import DocumentHandler
-from enums import RagStatus
+# Local Libraries
 from models.chroma_model import ChromaModel
-from utils import banner, log_chat_transcript
+from src.constants import (
+    CHROMA_COLL_NAME,
+    CHROMA_DB_DIR,
+    HF_BATCH_SIZE,
+    INGEST_LIMIT_RETRIES,
+)
+from src.document_handler import DocumentHandler
+from src.enums import RagStatus
+from src.utils import (
+    banner,
+    format_bytes,
+    log_chat_transcript,
+    show_timer,
+    start_timer,
+    sum_bytes_in_dir,
+)
 
 
 def run_rag_pipeline(
@@ -40,9 +55,8 @@ def run_rag_pipeline(
 
     if data_refresh:
         # Reset via the client's own reset() API (see ChromaModel.delete)
-        # rather than wiping chroma_db/ on disk — the Rust-backed
-        # persistent client doesn't tolerate its files disappearing out
-        # from under it.
+        # rather than wiping chroma_db/ on disk — the Rust-backed persistent
+        # client doesn't tolerate its files disappearing out from under it.
         log_chat_transcript(
             "RAG_PIPELINE", "🗑️ Wiping database before ingesting..."
         )
@@ -53,12 +67,12 @@ def run_rag_pipeline(
 
         rag_status = _ingest(chroma_model, doc_handle)
 
-    # Not refreshing — nothing gets deleted on this path, so it's always
-    # safe to construct immediately and check the count before deciding
-    # whether to do any ingestion work at all.
+    # Not refreshing — nothing gets deleted on this path, so it's always safe
+    # to construct immediately and check the count before deciding whether to
+    # do any ingestion work at all.
     counts = {
-        "collection_count": chroma_model.get_collection_count(),
         "chunk_count": None,
+        "collection_count": chroma_model.get_collection_count(),
         "document_count": doc_handle.count_documents(),
     }
 
@@ -113,11 +127,6 @@ def _ingest(
         f"➕ Adding {len(document_chunks)} 🗃️ vector document chunks using a batch size of {HF_BATCH_SIZE}...",
     )
 
-    # @TODO output first batch to see what it looks like
-    log_chat_transcript("DBG: RAG_INGESTION: 1st CHUNK", document_chunks[0])
-    log_chat_transcript("DBG: RAG_INGESTION: 2nd CHUNK", document_chunks[0])
-    # @TODO
-
     vector_status = chroma_model.add_vector_documents(document_chunks)
     show_timer(start_time)
 
@@ -150,7 +159,7 @@ def _ingest(
     return _verify(counts)
 
 
-def _verify(counts: dict) -> RagStatus:
+def _verify(counts: dict) -> RagStatus | None:
 
     # Count how many documents were ingested (collection)
     collection_count = counts.get("collection_count", 0)

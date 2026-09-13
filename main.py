@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     show_banner(APP_NAME)
 
-    log_chat_transcript("MAIN", f"\n-----  🖥️ {APP_NAME} 🖥️  -----\n")
+    log_chat_transcript("MAIN", f"\n-----  🖥️ {APP_NAME} 🖥️  -----")
 
     prog_start_time = start_timer()
     run_id = gen_run_id()

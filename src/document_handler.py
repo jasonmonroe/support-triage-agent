@@ -4,9 +4,8 @@
 # +---------------------------------------------------------------------------+
 
 # Python Libraries
-
-# Vendor Libraries
 import html
+import re
 
 import frontmatter
 from langchain_core.documents import Document
@@ -34,7 +33,7 @@ class DocumentHandler:
         return Document(
             id=metadata.get("id"),
             type="Document",
-            page_content=content.strip(),
+            page_content=self._format_html(content),
             metadata=metadata,
         )
 
@@ -55,10 +54,11 @@ class DocumentHandler:
             for company_file_order, company_dict in enumerate(company_list):
                 # Get metadata for document creation and  Decode HTML.
                 content = company_dict.get("content") or ""
-                content = html.unescape(content)
+                content = self._format_html(content)
                 metadata = meta.extract(
                     company, company_file_order + 1, file_order, company_dict
                 )
+                """
                 log_chat_transcript(
                     (
                         "DOCUMENT_HANDLER: METADATA",
@@ -66,6 +66,7 @@ class DocumentHandler:
                     ),
                     metadata,
                 )
+                """
 
                 # Strip YAML frontmatter — MetadataExtractor already
                 # captured it as structured metadata above, so leaving it
@@ -83,6 +84,15 @@ class DocumentHandler:
         self._documents = documents
 
         return self._chunks
+
+    def _format_html(self, page_content: str) -> str:
+        decoded = html.unescape(page_content.strip())
+
+        # Collapse multiple blank lines / empty <br /> tags to save tokens
+        cleaned = re.sub(r"(<br\s*/?>\s*)+", "<br />\n", decoded)
+        cleaned = re.sub(r"\n\s*\n", "\n", cleaned)
+
+        return cleaned.strip()
 
     def _create_chunks(self, documents: list) -> list:
         """
@@ -120,7 +130,7 @@ class DocumentHandler:
                 continue
 
             # Decode HTML in page content.
-            content = html.unescape(document.page_content)
+            content = self._format_html(document.page_content)
 
             # Split by markdown structure
             header_splits = markdown_splitter.split_text(content)

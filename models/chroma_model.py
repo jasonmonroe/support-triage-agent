@@ -99,6 +99,8 @@ class ChromaModel(GeminiModel):
         Embeds and adds (chunked) documents to the vector store in batches using
         explicit retry logic that parses vendor rate limit messages and backs
         off gracefully.
+        - Documents: 770
+        - Chunks: 10,421
         """
         chunk_count = len(chunks)
         vector_chunks = 0

@@ -5,7 +5,7 @@
 
 # Python Libraries
 import inspect
-from time import time
+import time
 
 # Local Libraries
 from models.support_agent_model import SupportAgentModel
@@ -28,6 +28,7 @@ def run_process_tickets_pipeline(
     banner(inspect.currentframe())
 
     tickets_df = dataset.get("support_tickets")
+    tickets = tickets_df.itertuples()
     row_count = tickets_df.shape[0]
     support_agent_model = SupportAgentModel(row_count)
 
@@ -41,44 +42,7 @@ def run_process_tickets_pipeline(
     # --- PROCESS TICKETS --- #
     output_rows = []
     for row in tickets_df.itertuples():
-        print(f"\nrow.Index = {row.Index}")
-        if row.Index >= 0:
-            """
-            ┌─────────────────────────────────────────────────────────┐
-            │              Input: CSV File of Tickets                 │
-            └───────────────────────────┬─────────────────────────────┘
-                                        │
-                                        ▼
-            ┌─────────────────────────────────────────────────────────┐
-            │ 1. READ & PARSE TICKET (Subject, Issue, Company)        │
-            └───────────────────────────┬─────────────────────────────┘
-                                        │
-                                        ▼
-            ┌─────────────────────────────────────────────────────────┐
-            │ 2. CLASSIFY & ASSESS (Request Type, Product Area, Risk) │
-            └───────────────────────────┬─────────────────────────────┘
-                                        │
-                                        ▼
-            ┌─────────────────────────────────────────────────────────┐
-            │ 3. RETRIEVE KNOWLEDGE (Search Markdown Documentation)   │
-            └───────────────────────────┬─────────────────────────────┘
-                                        │
-                                        ▼
-            ┌─────────────────────────────────────────────────────────┐
-            │ 4. MAKE DECISION (Safe to Reply vs. Must Escalate)       │
-            └───────────────────────────┬─────────────────────────────┘
-                                        │
-                                        ▼
-            ┌─────────────────────────────────────────────────────────┐
-            │ 5. GENERATE RESPONSE & JUSTIFICATION                    │
-            └───────────────────────────┬─────────────────────────────┘
-                                        │
-                                        ▼
-            ┌─────────────────────────────────────────────────────────┐
-            │         Output: CSV File Saved to disk (output.csv)     │
-            └─────────────────────────────────────────────────────────┘
-            """
-
+        if row.Index == 0:
             # Logs the exact XML/Text sent to the LLM
             start_time = start_timer()
             prompt = analyzer.build_prompt_by_company(row.Index, row)
