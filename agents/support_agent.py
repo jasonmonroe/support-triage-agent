@@ -45,7 +45,7 @@ class SupportAgent(ABC):
         """
         Initialize the SupportAgent class.
         """
-        self.title = "Support Agent"
+        self.title = "🤖 Support Agent"
         self.row_index = row_index
         self._chroma_model = chroma_model
         self._model = support_agent_model
@@ -389,14 +389,16 @@ class SupportAgent(ABC):
         )
 
         log_chat_transcript(
-            "SUPPORT_AGENT", f"Verify Grounded System Prompt: {system_prompt}"
+            "🤖 SUPPORT_AGENT",
+            f"Verify Grounded System Prompt: {system_prompt}",
         )
 
         grounded_response = self._model.get_response(
             system_prompt, self.row_index
         )
         log_chat_transcript(
-            "SUPPORT_AGENT", f"Verify Grounded Response: {grounded_response}"
+            "🤖 SUPPORT_AGENT",
+            f"Verify Grounded Response: {grounded_response}",
         )
 
         is_grounded = (
@@ -463,7 +465,7 @@ class SupportAgent(ABC):
         )
 
         log_chat_transcript(
-            "SUPPORT_AGENT",
+            "🤖 SUPPORT_AGENT",
             f"Check Precision: {system_prompt}\nCheck Precision: {precision_response}",
         )
 

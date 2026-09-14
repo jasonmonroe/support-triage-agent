@@ -42,7 +42,8 @@ def run_process_tickets_pipeline(
     # --- PROCESS TICKETS --- #
     output_rows = []
     for ticket in tickets:
-        if ticket.Index >= 10:
+        idx = ticket.Index
+        if idx > 0:
             # Logs the exact XML/Text sent to the LLM
             start_time = start_timer()
             prompt = analyzer.build_prompt_by_company(ticket)
@@ -54,10 +55,10 @@ def run_process_tickets_pipeline(
                 )
                 break
 
-            response = support_agent_model.get_response(prompt, ticket.Index)
+            response = support_agent_model.get_response(prompt, idx)
 
             log_chat_transcript(
-                f"TICKET_PIPELINE ({ticket.Index})",
+                f"TICKET_PIPELINE ({idx})",
                 f"💬 Prompt\n{prompt}\n\n💬  Response\n{response}\n",
             )
 
@@ -66,7 +67,7 @@ def run_process_tickets_pipeline(
                     "TICKET_PIPELINE",
                     (
                         "🚨 No response was given due to an error.  ",
-                        f"Breaking loop at row index {ticket.Index}. 🚨\n",
+                        f"Breaking loop at row index {idx}. 🚨\n",
                     ),
                 )
                 break
@@ -82,7 +83,7 @@ def run_process_tickets_pipeline(
             time.sleep(PAUSE_TIMER)
 
             log_chat_transcript(
-                "TICKET_PIPELINE", get_progress_bar(ticket.Index, row_count)
+                "TICKET_PIPELINE", get_progress_bar(idx, row_count)
             )
 
             output_rows.append(output_row)

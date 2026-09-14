@@ -70,7 +70,7 @@ class HackerrankAgent(SupportAgent):
         for term in forbidden_terms:
             if term in response_text:
                 log_chat_transcript(
-                    "HACKERRANK_AGENT",
+                    "🤖 HACKERRANK_AGENT",
                     f"{self.title}: Forbidden promise detected: '{term}'",
                 )
                 self.status = Status.ESCALATED
