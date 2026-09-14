@@ -14,7 +14,7 @@ from agents.claude_agent import ClaudeAgent
 from agents.hackerrank_agent import HackerrankAgent
 from agents.support_agent import SupportAgent
 from agents.visa_agent import VisaAgent
-from src.enums import Company
+from src.enums import Company, Status
 from src.prompt_builder import PromptBuilder
 from src.utils import (
     log_chat_transcript,
@@ -33,11 +33,11 @@ class TicketAnalyzer:
 
     def build_prompt_by_company(
         self,
-        row_index: int,
+        # row_index: int,
         ticket_df: pd.DataFrame,
     ) -> str:
 
-        # Get company
+        row_index = ticket_df.Index
         self._agent = self._get_agent(row_index, ticket_df)
         log_chat_transcript(
             "TICKET_ANALYZER", f"Agent Loaded: {self._agent.title}."
@@ -48,31 +48,47 @@ class TicketAnalyzer:
         self._agent.classify_issue()
         self._agent.make_decision()
 
-        # Doc retrieval (for dataset)
-        start_time = start_timer()
-        documents = self._agent.retrieve_relevant_documents()
-        show_timer(start_time)
+        documents = []
 
-        if len(documents) == 0:
-            log_chat_transcript(
-                "TICKET_ANALYZER", "🚨 ERROR: No retrieved documents found. 🚨"
-            )
-            return ""
-        else:
+        if self._agent.status == Status.ESCALATED:
+            # Hard gate: make_decision() already escalated on risk signals
+            # alone. Skip retrieval and the 3-LLM-call groundness pipeline
+            # entirely — nothing there can un-escalate a ticket already
+            # flagged as risky, so don't spend the tokens finding out.
             log_chat_transcript(
                 "TICKET_ANALYZER",
-                {
-                    "message": f"Retrieved Document Count: {len(documents)}.",
-                    "documents": documents,
-                },
+                "🚩 Hard-escalated pre-retrieval: "
+                f"{self._agent.justification}",
             )
+        else:
+            # Doc retrieval (for dataset)
+            start_time = start_timer()
+            documents = self._agent.retrieve_relevant_documents()
+            show_timer(start_time)
 
-        # Run groundness on the retrieved documents
-        start_time = start_timer()
-        grounding_results = self._agent.groundness(documents)
-        show_timer(start_time)
+            if len(documents) == 0:
+                log_chat_transcript(
+                    "TICKET_ANALYZER",
+                    "🚨 ERROR: No retrieved documents found. 🚨",
+                )
+                return ""
+            else:
+                log_chat_transcript(
+                    "TICKET_ANALYZER",
+                    {
+                        "message": (
+                            f"Retrieved Document Count: {len(documents)}."
+                        ),
+                        "documents": documents,
+                    },
+                )
 
-        self._agent.evaluate_groundness(grounding_results)
+            # Run groundness on the retrieved documents
+            start_time = start_timer()
+            grounding_results = self._agent.groundness(documents)
+            show_timer(start_time)
+
+            self._agent.evaluate_groundness(grounding_results)
 
         # Assuming all the values are the most accurate from the retrieved
         # documents build a final prompt for final analysis.
@@ -85,7 +101,18 @@ class TicketAnalyzer:
             "document_chunks": documents,
             "row_index": row_index,
         }
+
         builder = PromptBuilder(dataset)
+
+        """
+        Returns output.  Use three inputs and 5 outputs (
+            status,
+            product_area,
+            response,
+            justificiation,
+            request_ type
+            ) to create the output.csv row
+        """
 
         return builder.prompt.strip()
 
@@ -94,8 +121,8 @@ class TicketAnalyzer:
     ) -> Union[SupportAgent, ClaudeAgent, HackerrankAgent, VisaAgent]:
         agent_params = {
             "chroma_model": self._chroma_model,
-            "support_agent_model": self._support_agent_model,
             "row_index": row_index,
+            "support_agent_model": self._support_agent_model,
             "ticket_df": ticket_df,
         }
 

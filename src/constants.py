@@ -40,10 +40,8 @@ HF_BATCH_SIZE = 128
 
 # Chroma DB Variables
 CHROMA_COLL_NAME = "triage_docs"
-CHROMA_RESULT_CNT = 5
+CHROMA_RESULT_CNT = 10
 CHROMA_SERVER_NO_TELEMETRY = "true"
-CHROMA_TELEMETRY_DISABLED = "1"
-SEMANTIC_THRESH_LIMIT = 5
 
 # Documents
 DOCUMENT_CHUNK_SIZE = 800
@@ -51,7 +49,10 @@ DOCUMENT_CHUNK_OVERLAP = 200
 DOCUMENT_DIR_PERM = 0o755
 DOCUMENT_TYPE = "markdown"
 
-RESP_EVAL_THRESHOLD = 0.85  # Response relevance threshold
+# Chroma's similarity_search_with_score returns a DISTANCE, not a
+# similarity score — lower means more similar. Keep documents at or
+# below this; real observed distances for on-topic matches run ~0.3-0.5.
+MAX_RELEVANCE_DISTANCE = 0.7
 RESP_PRECISION_THRESHOLD = 0.80
 MIN_SEARCH_SCORE = 0.0
 

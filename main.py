@@ -108,7 +108,6 @@ if __name__ == "__main__":
         os.remove(CHAT_TRANSCRIPT_FILE)
 
     show_banner(APP_NAME)
-
     log_chat_transcript("MAIN", f"\n-----  🖥️ {APP_NAME} 🖥️  -----")
 
     prog_start_time = start_timer()

@@ -28,10 +28,10 @@ def run_process_tickets_pipeline(
     banner(inspect.currentframe())
 
     tickets_df = dataset.get("support_tickets")
-    tickets = tickets_df.itertuples()
     row_count = tickets_df.shape[0]
-    support_agent_model = SupportAgentModel(row_count)
+    tickets = tickets_df.itertuples()
 
+    support_agent_model = SupportAgentModel(row_count)
     analyzer = TicketAnalyzer(
         {
             "chroma_model": chroma_model,
@@ -41,12 +41,11 @@ def run_process_tickets_pipeline(
 
     # --- PROCESS TICKETS --- #
     output_rows = []
-    for row in tickets_df.itertuples():
-        if row.Index == 0:
+    for ticket in tickets:
+        if ticket.Index >= 10:
             # Logs the exact XML/Text sent to the LLM
             start_time = start_timer()
-            prompt = analyzer.build_prompt_by_company(row.Index, row)
-            show_timer(start_time)
+            prompt = analyzer.build_prompt_by_company(ticket)
 
             # Break loop (due to no retrieved documents or any other error)
             if not prompt or prompt == "":
@@ -55,28 +54,19 @@ def run_process_tickets_pipeline(
                 )
                 break
 
-            """
-            Returns output.  Use three inputs and 5 outputs (
-                status,
-                product_area,
-                response,
-                justificiation,
-                request_ type
-                ) to create the output.csv row
-            """
+            response = support_agent_model.get_response(prompt, ticket.Index)
 
-            response = support_agent_model.get_response(prompt, row.Index)
             log_chat_transcript(
-                f"TICKET_PIPELINE ({row.Index})",
+                f"TICKET_PIPELINE ({ticket.Index})",
                 f"💬 Prompt\n{prompt}\n\n💬  Response\n{response}\n",
             )
 
-            if not response or hasattr(response, "error"):
+            if not response:
                 log_chat_transcript(
                     "TICKET_PIPELINE",
                     (
                         "🚨 No response was given due to an error.  ",
-                        f"Breaking loop at row index {row.Index}. 🚨\n",
+                        f"Breaking loop at row index {ticket.Index}. 🚨\n",
                     ),
                 )
                 break
@@ -87,12 +77,12 @@ def run_process_tickets_pipeline(
                 "TICKET_PIPELINE",
                 f"Model Response Time: {get_time(start_time)}",
             )
-            show_timer(start_time)
 
+            show_timer(start_time)
             time.sleep(PAUSE_TIMER)
 
             log_chat_transcript(
-                "TICKET_PIPELINE", get_progress_bar(row.Index, row_count)
+                "TICKET_PIPELINE", get_progress_bar(ticket.Index, row_count)
             )
 
             output_rows.append(output_row)

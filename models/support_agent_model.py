@@ -37,7 +37,10 @@ class SupportAgentModel(GeminiModel):
         for key, value in attr_dict.items():
             if "_" not in key and "_key" in key and value is None:
                 raise ValueError(
-                    f"🚨 {key} Credentials aren't properly being read. Check environment file. 🚨"
+                    (
+                        f"🚨 {key} Credentials aren't properly being read.",
+                        " Check environment file. 🚨",
+                    )
                 )
 
             display_value = (
@@ -68,7 +71,8 @@ class SupportAgentModel(GeminiModel):
 
     def get_response(self, prompt: str, row_index: int) -> dict:
         """
-        Calls OpenAI model with instructions and prompt context and waits for a response.
+        Calls OpenAI model with instructions and prompt context and waits for
+        a response.
         """
         attempt = 0
         while attempt < RATE_LIMIT_RETRIES:
