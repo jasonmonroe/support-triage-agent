@@ -11,5 +11,6 @@ __pycache__/
 .venv
 .vscode
 log.txt
+chroma_db/
 support_tickets/output.csv
-venv
+venv/
