@@ -11,7 +11,6 @@ from langchain_core.documents import Document
 
 # Local Libraries
 from agents.support_agent import SupportAgent
-from src.enums import Status
 from src.utils import log_chat_transcript
 
 
@@ -34,14 +33,15 @@ class VisaAgent(SupportAgent):
             query_str=query_str, company=self.company
         )
 
-    def _verify_grounded_response(self, draft: dict, documents: list) -> bool:
-        """Overrides base verification to add PCI-DSS compliance and financial policy checks."""
+    def _get_verify_hook(self):
+        return self._compliance_check
 
-        # Base citation verification check
-        is_verified = super()._verify_grounded_response(draft, documents)
-        if not is_verified:
-            return False
+    def _compliance_check(self, draft: dict) -> bool:
+        """Plugged into RagAgent's verification gate (see
 
+        SupportAgent._get_verify_hook()) to add PCI-DSS compliance and
+        financial policy checks on top of base citation verification.
+        """
         draft_text = (
             draft.get("response", "")
             if isinstance(draft, dict)
@@ -80,7 +80,6 @@ class VisaAgent(SupportAgent):
         if not compliance_response or not isinstance(
             compliance_response, dict
         ):
-            self.status = Status.ESCALATED
             return False
 
         return compliance_response.get("is_compliant", False)

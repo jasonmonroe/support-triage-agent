@@ -85,8 +85,14 @@ class SupportAgent(ABC):
             "subject": self.subject,
             "issue": self.issue,
             "status": self.status,
+            "verify_hook": self._get_verify_hook(),
         }
         return RagAgent(dataset)
+
+    def _get_verify_hook(self):
+        """Hook for subclasses to plug a company-specific compliance check
+        into RagAgent's verification gate. None means no extra check."""
+        return None
 
     def _get_company(self, company: str | None) -> str | None:
         if not company or company.strip().lower() == Company.NONE.lower():
@@ -207,35 +213,11 @@ class SupportAgent(ABC):
         text = f"{self.subject or ''} {self.issue or ''}"
         return match_company_by_keywords(text)
 
-    def evaluate_groundness(self, results: dict) -> None:
-        """
-        Evaluates the grounding and precision results dictionary and updates
-        the agent's status, response, and justification accordingly.
-        """
-        print(f"evaluate_groundness()\ngrounding_results-> {results}")
-        is_grounded = results.get("grounded", False)
-        is_precise = results.get("precise", False)
-        reasoning = results.get("reasoning", "No justification provided.")
-
-        # Escalate if EITHER grounding OR precision fails
-        if not is_grounded or not is_precise:
-            self.status = Status.ESCALATED
-            self.response = (
-                "Your request has been escalated to a support specialist for"
-                " further review."
-            )
-            self.justification = f"Escalated support ticket: {reasoning}."
-        else:
-            # Both gates passed successfully
-            self.status = Status.REPLIED
-            self.response = results.get("response", self.response)
-            self.justification = (
-                f"Answered using grounded documentation: '{reasoning}'."
-            )
-
     def groundness(self, documents: list) -> dict:
         # Get grounding results
         results = self.rag_agent.grounding(documents)
         self.status = results.get("status")
+        self.response = results.get("response", self.response)
+        self.justification = results.get("justification", self.justification)
 
         return results

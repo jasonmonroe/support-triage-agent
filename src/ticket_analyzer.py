@@ -91,7 +91,7 @@ class TicketAnalyzer:
             # Run groundness on the retrieved documents
             start_time = start_timer()
             grounding_results = self._agent.groundness(documents)
-            self._agent.evaluate_groundness(grounding_results)
+            # self._agent.evaluate_groundness(grounding_results)
             show_timer(start_time)
 
         # Assuming all the values are the most accurate from the retrieved

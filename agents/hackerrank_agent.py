@@ -11,7 +11,6 @@ from langchain_core.documents import Document
 
 # Local Libraries
 from agents.support_agent import SupportAgent
-from src.enums import Status
 from src.utils import log_chat_transcript
 
 
@@ -47,33 +46,27 @@ class HackerrankAgent(SupportAgent):
             "grant score",
         ]
 
-    def _verify_grounded_response(self, draft: dict, documents: list) -> bool:
-        """Overrides SupportAgent._verify_grounded_response() to add a
+    def _get_verify_hook(self):
+        return self._check_forbidden_terms
 
-        business-rule check on top of base citation verification.
+    def _check_forbidden_terms(self, draft: dict) -> bool:
+        """Plugged into RagAgent's verification gate (see
+
+        SupportAgent._get_verify_hook()) to block unauthorized HackerRank
+        score-manipulation promises on top of base citation verification.
         """
-        # 1. Run base citation verification gate first
-        is_verified = super()._verify_grounded_response(draft, documents)
-        if not is_verified:
-            return False
-
-        # 2. Extract response text safely
         response_text = (
             draft.get("response", "").lower()
             if isinstance(draft, dict)
             else ""
         )
 
-        # 3. Check for unauthorized HackerRank policy promises
-        forbidden_terms = self._forbidden_terms()
-
-        for term in forbidden_terms:
+        for term in self._forbidden_terms():
             if term in response_text:
                 log_chat_transcript(
                     "🤖 HACKERRANK_AGENT",
                     f"{self.title}: Forbidden promise detected: '{term}'",
                 )
-                self.status = Status.ESCALATED
                 return False
 
         return True

@@ -5,11 +5,9 @@
 
 # Python Libraries
 import inspect
-import time
 
 # Local Libraries
 from models.support_agent_model import SupportAgentModel
-from src.constants import PAUSE_TIMER
 from src.ticket_analyzer import TicketAnalyzer
 from src.utils import (
     banner,
@@ -42,78 +40,20 @@ def run_process_tickets_pipeline(
     output_rows = []
     for ticket in tickets:
         idx = ticket.Index
-        if idx == 0:
+        if idx >= 0:
             # Logs the exact XML/Text sent to the LLM
             start_time = start_timer()
 
             output_row = analyzer.process(ticket)
 
-            show_timer(start_time)
-            time.sleep(PAUSE_TIMER)
-
             log_chat_transcript(
                 "🎟️ TICKET_PIPELINE", get_progress_bar(idx, row_count)
             )
 
-            output_rows.append(output_row)
-
-    # (DEBUG) Intentionally stop here to see what the output_rows data is!
-    import sys
-
-    sys.exit(0)
-    return output_rows
-
-    # --- old ----
-    output_rows = []
-    for ticket in tickets:
-        idx = ticket.Index
-        if idx == 0:
-            # Logs the exact XML/Text sent to the LLM
-            start_time = start_timer()
-            prompt = analyzer.build_prompt_by_company(ticket)
-
-            # Break loop (due to no retrieved documents or any other error)
-            if not prompt or prompt == "":
-                log_chat_transcript(
-                    "TICKET_PIPELINE", "😵 Prompt is empty.  Breaking loop."
-                )
-                break
-
-            output_row = analyzer.get_output(prompt)
-
-            """
-            response = support_agent_model.get_response(prompt, idx)
-
-            log_chat_transcript(
-                f"TICKET_PIPELINE ({idx})",
-                f"💬 Prompt\n{prompt}\n\n💬  Response\n{response}\n",
-            )
-
-            if not response:
-                log_chat_transcript(
-                    "TICKET_PIPELINE",
-                    (
-                        "🚨 No response was given due to an error.  ",
-                        f"Breaking loop at row index {idx}. 🚨\n",
-                    ),
-                )
-                break
-
-            output_row = analyzer.format_output(response)
-
-            log_chat_transcript(
-                "TICKET_PIPELINE",
-                f"Model Response Time: {get_time(start_time)}",
-            )
-            """
-
             show_timer(start_time)
-            time.sleep(PAUSE_TIMER)
-
-            log_chat_transcript(
-                "TICKET_PIPELINE", get_progress_bar(idx, row_count)
-            )
 
             output_rows.append(output_row)
+
+    log_chat_transcript("🎟️ TICKET_PIPELINE", output_rows)
 
     return output_rows
