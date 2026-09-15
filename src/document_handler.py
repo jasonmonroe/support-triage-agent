@@ -45,14 +45,13 @@ class DocumentHandler:
             )
             return []
 
-        meta = MetadataExtractor()
-
         # Convert raw text into Langchain document objects
         documents = []
         file_order = 1
         for company, company_list in self._md_files.items():
             for company_file_order, company_dict in enumerate(company_list):
                 # Get metadata for document creation and  Decode HTML.
+                meta = MetadataExtractor()
                 content = company_dict.get("content") or ""
                 content = self._format_html(content)
                 metadata = meta.extract(

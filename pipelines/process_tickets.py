@@ -40,19 +40,19 @@ def run_process_tickets_pipeline(
     output_rows = []
     for ticket in tickets:
         idx = ticket.Index
-        if idx >= 0:
-            # Logs the exact XML/Text sent to the LLM
-            start_time = start_timer()
 
-            output_row = analyzer.process(ticket)
+        # Logs the exact XML/Text sent to the LLM
+        start_time = start_timer()
 
-            log_chat_transcript(
-                "🎟️ TICKET_PIPELINE", get_progress_bar(idx, row_count)
-            )
+        output_row = analyzer.process(ticket)
 
-            show_timer(start_time)
+        log_chat_transcript(
+            "🎟️ TICKET_PIPELINE", get_progress_bar(idx, row_count)
+        )
 
-            output_rows.append(output_row)
+        show_timer(start_time)
+
+        output_rows.append(output_row)
 
     log_chat_transcript("🎟️ TICKET_PIPELINE", output_rows)
 
