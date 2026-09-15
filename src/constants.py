@@ -40,7 +40,7 @@ HF_BATCH_SIZE = 128
 
 # Chroma DB Variables
 CHROMA_COLL_NAME = "triage_docs"
-CHROMA_RESULT_CNT = 10
+CHROMA_RESULT_CNT = 15
 CHROMA_SERVER_NO_TELEMETRY = "true"
 
 # Documents
@@ -114,7 +114,97 @@ URGENT_TERMS = (
     "urgent",
 )
 
-# Prompts
+# --- GROUNDING PROMPTS --- #
+
+# Filtered Document Prompt
+FILTER_DOC_PROMPT = """
+You are an AI Support Response Specialist. Your task is to draft a user-facing response to a support ticket using ONLY the provided retrieved context documents.
+
+## SUPPORT TICKET
+Subject: {subject}
+Issue: {issue}
+
+## RETRIEVED CONTEXT DOCUMENTS
+{documents}
+
+## TASK INSTRUCTIONS:
+1. Answer the support ticket issue using ONLY facts present in the context documents above. Do not assume or extrapolate policies[span_0](start_span)[span_0](end_span).
+2. Cite the specific `chunk_idx` backing each claim in your response.
+3. If the context does not contain enough information to answer the ticket, set `grounded` to false and state what information is missing in `reasoning`.
+
+## OUTPUT REQUIREMENTS:
+Return ONLY a valid JSON object wrapped inside a markdown code block (```json ... ```) matching this schema:
+
+```json
+{{
+"grounded": true,
+"response": "Detailed support response grounded strictly in the documentation.",
+"cited_chunks": [0],
+"reasoning": "Concise justification for why the context is sufficient or insufficient."
+}}
+""".strip()
+
+# Verifying Ground Response
+GROUND_RESPONSE_PROMPT = """
+You are an AI Quality Assurance Specialist evaluating RAG groundedness.
+Verify whether the proposed draft response is factually supported by the referenced context documents.
+
+## DRAFT RESPONSE TO VERIFY
+{draft}
+
+## REFERENCE CONTEXT DOCUMENTS
+{documents}
+
+## CRITERIA FOR VERIFICATION:
+1. Verify that every `cited_chunks` index in the draft actually exists in the reference context documents.
+2. Verify that the text in the referenced chunks explicitly supports every claim made in `response`.
+3. Return `is_grounded = true` ONLY if every citation checks out and no claims are fabricated or hallucinated.
+4. Return `is_grounded = false` if any citation is missing, fabricated, or unsupported by the text.
+
+## OUTPUT SPECIFICATION:
+Return ONLY a valid JSON object wrapped inside a markdown code block (```json ... ```) matching this schema:
+
+```json
+{{
+"is_grounded": true,
+"reasoning": "Explanation of why citations pass or fail validation."
+}}
+""".strip()
+
+# Precision Prompt
+PRECISION_RESPONSE_PROMPT = """
+You are an AI Support Supervisor evaluating response precision.
+Determine whether the drafted response directly and accurately addresses the user's support ticket issue and subject[span_0](start_span)[span_0](end_span).
+
+## TICKET ISSUE
+{issue}
+
+{subject}
+
+## DRAFTED RESPONSE
+{draft}
+
+## EVALUATION CRITERIA:
+- Focus solely on the relationship between the ticket issue/subject and the drafted response[span_1](start_span)[span_1](end_span).
+- Do NOT evaluate factual grounding (that has already been verified)[span_2](start_span)[span_2](end_span).
+- Does the response actually answer what the user asked, or does it answer an adjacent/unrelated question?[span_3](start_span)[span_3](end_span)
+
+## SCORING SCALE (0.0 to 1.0):
+- 1.0: The response directly and completely answers the ticket issue[span_4](start_span)[span_4](end_span).
+- 0.0: The response is ambiguous, off-topic, or answers a different question entirely[span_5](start_span)[span_5](end_span).
+
+## OUTPUT SPECIFICATION:
+Return ONLY a valid JSON object wrapped inside a markdown code block (```json ... ```) matching this schema:
+
+```json
+{{
+"precision_score": 0.95,
+"reasoning": "Concise explanation of why the response is precise or imprecise for this ticket."
+}}
+""".strip()
+
+
+# --- FINAL PROMPTS --- #
 SYSTEM_INSTR_PROMPT = """
 You are an {agent_title} AI First Responder and Support Triage expert. Your primary role is to evaluate incoming support tickets, decide whether the ticket can be answered safely or must be escalated to a human specialist, and produce a grounded response based on official internal documentation.
 
@@ -127,8 +217,8 @@ You are an {agent_title} AI First Responder and Support Triage expert. Your prim
 """.strip()
 
 
-# This prompt assumes that all the data (support ticket data, retrieved documents)
-# are truthful due to groundness.
+# This FINAL prompt assumes that all the data (support ticket data, retrieved
+# documents) are truthful due to groundness.
 USER_PROMPT_TEMPLATE = """
 ## SUPPORT TICKET DATA FOR ANALYSIS
 

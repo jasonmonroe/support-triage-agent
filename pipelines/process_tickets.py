@@ -14,7 +14,6 @@ from src.ticket_analyzer import TicketAnalyzer
 from src.utils import (
     banner,
     get_progress_bar,
-    get_time,
     log_chat_transcript,
     show_timer,
     start_timer,
@@ -43,7 +42,32 @@ def run_process_tickets_pipeline(
     output_rows = []
     for ticket in tickets:
         idx = ticket.Index
-        if idx > 0:
+        if idx == 0:
+            # Logs the exact XML/Text sent to the LLM
+            start_time = start_timer()
+
+            output_row = analyzer.process(ticket)
+
+            show_timer(start_time)
+            time.sleep(PAUSE_TIMER)
+
+            log_chat_transcript(
+                "TICKET_PIPELINE", get_progress_bar(idx, row_count)
+            )
+
+            output_rows.append(output_row)
+
+    # (DEBUG) Intentionally stop here to see what the output_rows data is!
+    import sys
+
+    sys.exit(0)
+    return output_rows
+
+    # --- old ----
+    output_rows = []
+    for ticket in tickets:
+        idx = ticket.Index
+        if idx == 0:
             # Logs the exact XML/Text sent to the LLM
             start_time = start_timer()
             prompt = analyzer.build_prompt_by_company(ticket)
@@ -55,6 +79,9 @@ def run_process_tickets_pipeline(
                 )
                 break
 
+            output_row = analyzer.get_output(prompt)
+
+            """
             response = support_agent_model.get_response(prompt, idx)
 
             log_chat_transcript(
@@ -78,6 +105,7 @@ def run_process_tickets_pipeline(
                 "TICKET_PIPELINE",
                 f"Model Response Time: {get_time(start_time)}",
             )
+            """
 
             show_timer(start_time)
             time.sleep(PAUSE_TIMER)

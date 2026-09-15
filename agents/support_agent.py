@@ -11,6 +11,7 @@ from abc import ABC
 import pandas as pd
 
 # Local Libraries
+from agents.rag_agent import RagAgent
 from models.chroma_model import ChromaModel
 from models.support_agent_model import SupportAgentModel
 from src.constants import (
@@ -64,6 +65,7 @@ class SupportAgent(ABC):
         self._set_attrs(ticket_df)
 
         self.company = self._get_company(self.company)
+        self.rag_agent = self._get_rag_agent()
 
     def _set_attrs(self, row) -> None:
         for column, value in row_to_dict(row).items():
@@ -78,6 +80,16 @@ class SupportAgent(ABC):
                 if pd.isna(value):
                     value = None
                 setattr(self, key, value)
+
+    def _get_rag_agent(self):
+        dataset = {
+            "model": self._model,
+            "row_index": self.row_index,
+            "subject": self.subject,
+            "issue": self.issue,
+            "status": self.status,
+        }
+        return RagAgent(dataset)
 
     def _get_company(self, company: str | None) -> str | None:
         if not company or company.strip().lower() == Company.NONE.lower():
@@ -130,15 +142,16 @@ class SupportAgent(ABC):
         """
         Make a decision based on the request: reply or escalate, based purely
         on the risk level from classify() (pre-retrieval).
+
+        Only CRITICAL risk hard-escalates pre-retrieval. HIGH_RISK_TERMS
+        (e.g. "delete my account", "refund") are often legitimate, documented
+        self-service flows — auto-escalating those skips retrieval entirely and
+        can block a perfectly answerable FAQ (confirmed: "delete my account" has
+        a complete, on-point KB article, but the old HIGH-inclusive gate never
+        let retrieval run to find it). Let HIGH risk flow through to retrieval +
+        groundness like any other ticket instead.
         """
-        # Only CRITICAL risk hard-escalates pre-retrieval. HIGH_RISK_TERMS
-        # (e.g. "delete my account", "refund") are often legitimate,
-        # documented self-service flows — auto-escalating those skips
-        # retrieval entirely and can block a perfectly answerable FAQ
-        # (confirmed: "delete my account" has a complete, on-point KB
-        # article, but the old HIGH-inclusive gate never let retrieval
-        # run to find it). Let HIGH risk flow through to retrieval +
-        # groundness like any other ticket instead.
+
         if self._risk_level == Risk.CRITICAL:
             self.status = Status.ESCALATED
             self.justification = f"{self.status}: Ticket matched '{self._risk_level}' risk signals."
@@ -198,6 +211,16 @@ class SupportAgent(ABC):
         return match_company_by_keywords(text)
 
     def groundness(self, documents: list) -> dict:
+        # Get grounding results
+        results = self.rag_agent.grounding(documents)
+        self.status = results.get("status")
+
+        return results
+        # self.issue = $
+
+    # @TODO - Testing Agent_Rag.grounding()
+    # This works but want to refactor some more.
+    def groundness2(self, documents: list) -> dict:
 
         print("\n\ngroundess()")
         filtered_documents = self._filter_by_relevance(documents)
@@ -474,7 +497,7 @@ class SupportAgent(ABC):
             return False
 
         precision_score = (
-            precision_response.get("precision_score", 0.0)
+            precision_response.get("precision_score", MIN_SEARCH_SCORE)
             if isinstance(precision_response, dict)
             else MIN_SEARCH_SCORE
         )

@@ -30,15 +30,16 @@ class TicketAnalyzer:
         self._chroma_model = dataset.get("chroma_model")
         self._support_agent_model = dataset.get("model")
         self._ticket = {}
+        self._row_index = None
 
-    def build_prompt_by_company(
+    def process(
         self,
         # row_index: int,
         ticket_df: pd.DataFrame,
     ) -> str:
 
-        row_index = ticket_df.Index
-        self._agent = self._get_agent(row_index, ticket_df)
+        self._row_index = ticket_df.Index
+        self._agent = self._get_agent(ticket_df)
         log_chat_transcript(
             "TICKET_ANALYZER", f"Agent Loaded: {self._agent.title}."
         )
@@ -49,7 +50,6 @@ class TicketAnalyzer:
         self._agent.make_decision()
 
         documents = []
-
         if self._agent.status == Status.ESCALATED:
             # Hard gate: make_decision() already escalated on risk signals
             # alone. Skip retrieval and the 3-LLM-call groundness pipeline
@@ -86,9 +86,8 @@ class TicketAnalyzer:
             # Run groundness on the retrieved documents
             start_time = start_timer()
             grounding_results = self._agent.groundness(documents)
-            show_timer(start_time)
-
             self._agent.evaluate_groundness(grounding_results)
+            show_timer(start_time)
 
         # Assuming all the values are the most accurate from the retrieved
         # documents build a final prompt for final analysis.
@@ -99,7 +98,7 @@ class TicketAnalyzer:
         # Load Prompt Builder to get the prompt
         dataset = agent_dataset | {
             "document_chunks": documents,
-            "row_index": row_index,
+            "row_index": self._row_index,
         }
 
         builder = PromptBuilder(dataset)
@@ -114,14 +113,14 @@ class TicketAnalyzer:
             ) to create the output.csv row
         """
 
-        return builder.prompt.strip()
+        return self._get_output(builder.prompt.strip())
 
     def _get_agent(
-        self, row_index: int, ticket_df: pd.DataFrame
+        self, ticket_df: pd.DataFrame
     ) -> Union[SupportAgent, ClaudeAgent, HackerrankAgent, VisaAgent]:
         agent_params = {
             "chroma_model": self._chroma_model,
-            "row_index": row_index,
+            "row_index": self._row_index,
             "support_agent_model": self._support_agent_model,
             "ticket_df": ticket_df,
         }
@@ -144,7 +143,15 @@ class TicketAnalyzer:
 
         return agent_mapping[company](**agent_params)
 
-    def format_output(self, response: dict) -> dict:
+    def _get_output(self, prompt: str) -> dict:
+
+        response = self._support_agent_model.get_response(
+            prompt, self._row_index
+        )
+
+        return self._format_output(response)
+
+    def _format_output(self, response: dict) -> dict:
         """Format response to an output row dict, overriding ticket keys with
         LLM response values."""
 
