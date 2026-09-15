@@ -88,6 +88,15 @@ class DocumentHandler:
     def _format_html(self, page_content: str) -> str:
         decoded = html.unescape(page_content.strip())
 
+        # Strip markdown images and HTML <img> tags. Their long, signed
+        # asset URLs (300-500+ chars) carry no semantic content but eat
+        # heavily into DOCUMENT_CHUNK_SIZE, pushing surrounding prose into
+        # separate chunks and diluting embeddings for the chunks they sit
+        # in — e.g. splitting a fact from its "default" clause into two
+        # chunks where only one gets retrieved.
+        decoded = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", decoded)
+        decoded = re.sub(r"<img\b[^>]*/?>", "", decoded)
+
         # Collapse multiple blank lines / empty <br /> tags to save tokens
         cleaned = re.sub(r"(<br\s*/?>\s*)+", "<br />\n", decoded)
         cleaned = re.sub(r"\n\s*\n", "\n", cleaned)

@@ -4,7 +4,6 @@
 # +---------------------------------------------------------------------------+
 
 # Python Libraries
-import json
 from abc import ABC
 
 # Vendor Libraries
@@ -17,15 +16,11 @@ from models.support_agent_model import SupportAgentModel
 from src.constants import (
     CRITICAL_RISK_TERMS,
     HIGH_RISK_TERMS,
-    MAX_RELEVANCE_DISTANCE,
-    MIN_SEARCH_SCORE,
-    RESP_PRECISION_THRESHOLD,
     TICKET_ISSUE_STRLEN,
     URGENT_TERMS,
 )
 from src.enums import Company, RequestType, Risk, Status, Urgency
 from src.utils import (
-    log_chat_transcript,
     match_company_by_keywords,
     row_to_dict,
 )
@@ -71,12 +66,14 @@ class SupportAgent(ABC):
         for column, value in row_to_dict(row).items():
             key = column.title().replace(" ", "_").lower()
             if hasattr(self, key):
-                # A blank CSV cell comes through pandas as float('nan'),
-                # not None/"" — and NaN is truthy in Python, so leaving it
-                # as-is breaks every downstream `if self.subject:` /
-                # `.strip()` call that assumes "truthy means it's a
-                # string." Normalize once here instead of guarding every
-                # call site.
+                """
+                A blank CSV cell comes through pandas as float('nan'), not
+                None/"" — and NaN is truthy in Python, so leaving it as-is
+                breaks every downstream `if self.subject:` / `.strip()` call
+                that assumes "truthy means it's a string." Normalize once here
+                instead of guarding every call site.
+                """
+
                 if pd.isna(value):
                     value = None
                 setattr(self, key, value)
@@ -211,8 +208,8 @@ class SupportAgent(ABC):
         return match_company_by_keywords(text)
 
     def evaluate_groundness(self, results: dict) -> None:
-        """Evaluates the grounding and precision results dictionary and updates
-
+        """
+        Evaluates the grounding and precision results dictionary and updates
         the agent's status, response, and justification accordingly.
         """
         print(f"evaluate_groundness()\ngrounding_results-> {results}")
@@ -242,289 +239,3 @@ class SupportAgent(ABC):
         self.status = results.get("status")
 
         return results
-
-    # @TODO - Testing Agent_Rag.grounding()
-    # This works but want to refactor some more.
-    def groundness2(self, documents: list) -> dict:
-
-        print("\n\ngroundess()")
-        filtered_documents = self._filter_by_relevance(documents)
-
-        if not filtered_documents:
-            return {
-                "grounded": False,
-                "precise": False,
-                "response": None,
-                "cited_chunks": [],
-                "documents": [],
-                "reasoning": (
-                    "No retrieved documents cleared the relevance threshold."
-                ),
-            }
-
-        draft = self._draft_filtered_response(filtered_documents)
-        cited_chunks = draft.get("cited_chunks", []) if draft else []
-
-        if not draft or not isinstance(draft, dict):
-            return {
-                "grounded": False,
-                "precise": False,
-                "response": None,
-                "cited_chunks": [],
-                "documents": filtered_documents,
-                "reasoning": "Failed to generate a valid structured draft.",
-            }
-
-        is_verified = self._verify_grounded_response(draft, filtered_documents)
-
-        if not is_verified:
-            return {
-                "grounded": False,
-                "precise": False,
-                "response": None,
-                "cited_chunks": cited_chunks,
-                "documents": filtered_documents,
-                "reasoning": (
-                    "Verification failed: Citations were missing, fabricated,"
-                    " or unsupported."
-                ),
-            }
-
-        is_query_precise = self._check_precision(draft)
-
-        if not is_query_precise:
-            return {
-                "grounded": True,
-                "precise": False,
-                "response": None,
-                "cited_chunks": cited_chunks,
-                "documents": filtered_documents,
-                "reasoning": (
-                    "Precision check failed: Response is factually grounded but"
-                    " off-topic for this ticket."
-                ),
-            }
-
-        # All gates have passed
-        self.response = draft.get("response")
-
-        return {
-            "grounded": True,
-            "precise": True,
-            "response": self.response,
-            "cited_chunks": cited_chunks,
-            "documents": filtered_documents,
-            "reasoning": draft.get("reasoning"),
-        }
-
-    def _filter_by_relevance(self, documents: list) -> list:
-
-        valid_documents = []
-
-        if not documents:
-            self.status = Status.ESCALATED
-            return valid_documents
-
-        for document, score in documents:
-            if score <= MAX_RELEVANCE_DISTANCE:
-                valid_documents.append(document)
-        print(f"valid_documents={valid_documents}")
-        return valid_documents
-
-    def _draft_filtered_response(self, documents: list) -> dict:
-
-        # Format document list for system prompt.
-        formatted_docs = json.dumps(
-            [
-                {
-                    "chunk_idx": doc.metadata.get("chunk_idx", idx),
-                    "content": doc.page_content,
-                }
-                for idx, doc in enumerate(documents)
-            ],
-            indent=2,
-        )
-
-        system_prompt = """
-        You are an AI Support Response Specialist. Your task is to draft a user-facing response to a support ticket using ONLY the provided retrieved context documents.
-
-        ## SUPPORT TICKET
-        Subject: {subject}
-        Issue: {issue}
-
-        ## RETRIEVED CONTEXT DOCUMENTS
-        {documents}
-
-        ## TASK INSTRUCTIONS:
-        1. Answer the support ticket issue using ONLY facts present in the context documents above. Do not assume or extrapolate policies[span_0](start_span)[span_0](end_span).
-        2. Cite the specific `chunk_idx` backing each claim in your response.
-        3. If the context does not contain enough information to answer the ticket, set `grounded` to false and state what information is missing in `reasoning`.
-
-        ## OUTPUT REQUIREMENTS:
-        Return ONLY a valid JSON object wrapped inside a markdown code block (```json ... ```) matching this schema:
-
-        ```json
-        {{
-        "grounded": true,
-        "response": "Detailed support response grounded strictly in the documentation.",
-        "cited_chunks": [0],
-        "reasoning": "Concise justification for why the context is sufficient or insufficient."
-        }}
-        """.strip().format(
-            subject=self.subject,
-            issue=self.issue,
-            documents=formatted_docs,
-        )
-
-        log_chat_transcript(
-            "SUPPORT_AGENT", f"_draft_filtered_response()\n{system_prompt}"
-        )
-
-        # Parse response, update attributes
-        draft_response = self._model.get_response(
-            system_prompt, self.row_index
-        )
-
-        if not draft_response:
-            log_chat_transcript(
-                "SUPPORT_AGENT",
-                "No response returned in _draft_filtered_response().",
-            )
-
-        return draft_response
-
-    def _verify_grounded_response(self, draft: dict, documents: list) -> bool:
-
-        formatted_draft = json.dumps(draft, indent=2)
-        formatted_docs = json.dumps(
-            [
-                {
-                    "chunk_idx": doc.metadata.get("chunk_idx", idx),
-                    "content": doc.page_content,
-                }
-                for idx, doc in enumerate(documents)
-            ],
-            indent=2,
-        )
-
-        system_prompt = """
-        You are an AI Quality Assurance Specialist evaluating RAG groundedness.
-        Verify whether the proposed draft response is factually supported by the referenced context documents.
-
-        ## DRAFT RESPONSE TO VERIFY
-        {draft}
-
-        ## REFERENCE CONTEXT DOCUMENTS
-        {documents}
-
-        ## CRITERIA FOR VERIFICATION:
-        1. Verify that every `cited_chunks` index in the draft actually exists in the reference context documents.
-        2. Verify that the text in the referenced chunks explicitly supports every claim made in `response`.
-        3. Return `is_grounded = true` ONLY if every citation checks out and no claims are fabricated or hallucinated.
-        4. Return `is_grounded = false` if any citation is missing, fabricated, or unsupported by the text.
-
-        ## OUTPUT SPECIFICATION:
-        Return ONLY a valid JSON object wrapped inside a markdown code block (```json ... ```) matching this schema:
-
-        ```json
-        {{
-        "is_grounded": true,
-        "reasoning": "Explanation of why citations pass or fail validation."
-        }}
-        """.strip().format(
-            draft=formatted_draft,
-            documents=formatted_docs,
-        )
-
-        log_chat_transcript(
-            "🤖 SUPPORT_AGENT",
-            f"Verify Grounded System Prompt: {system_prompt}",
-        )
-
-        grounded_response = self._model.get_response(
-            system_prompt, self.row_index
-        )
-        log_chat_transcript(
-            "🤖 SUPPORT_AGENT",
-            f"Verify Grounded Response: {grounded_response}",
-        )
-
-        is_grounded = (
-            bool(grounded_response.get("is_grounded"))
-            if isinstance(grounded_response, dict)
-            else False
-        )
-
-        if not is_grounded:
-            self.status = Status.ESCALATED
-
-        return is_grounded
-
-    def _check_precision(self, draft: dict) -> bool:
-
-        draft_text = (
-            draft.get("response", "")
-            if isinstance(draft, dict)
-            else str(draft)
-        )
-
-        subject_text = (
-            f"## TICKET SUBJECT\n{self.subject.strip()}"
-            if self.subject
-            else ""
-        )
-
-        system_prompt = """
-        You are an AI Support Supervisor evaluating response precision.
-        Determine whether the drafted response directly and accurately addresses the user's support ticket issue and subject[span_0](start_span)[span_0](end_span).
-
-        ## TICKET ISSUE
-        {issue}
-
-        {subject}
-
-        ## DRAFTED RESPONSE
-        {draft}
-
-        ## EVALUATION CRITERIA:
-        - Focus solely on the relationship between the ticket issue/subject and the drafted response[span_1](start_span)[span_1](end_span).
-        - Do NOT evaluate factual grounding (that has already been verified)[span_2](start_span)[span_2](end_span).
-        - Does the response actually answer what the user asked, or does it answer an adjacent/unrelated question?[span_3](start_span)[span_3](end_span)
-
-        ## SCORING SCALE (0.0 to 1.0):
-        - 1.0: The response directly and completely answers the ticket issue[span_4](start_span)[span_4](end_span).
-        - 0.0: The response is ambiguous, off-topic, or answers a different question entirely[span_5](start_span)[span_5](end_span).
-
-        ## OUTPUT SPECIFICATION:
-        Return ONLY a valid JSON object wrapped inside a markdown code block (```json ... ```) matching this schema:
-
-        ```json
-        {{
-        "precision_score": 0.95,
-        "reasoning": "Concise explanation of why the response is precise or imprecise for this ticket."
-        }}""".strip().format(
-            issue=self.issue.strip(),
-            subject=subject_text,
-            draft=draft_text,
-        )
-
-        precision_response = self._model.get_response(
-            system_prompt, self.row_index
-        )
-
-        log_chat_transcript(
-            "🤖 SUPPORT_AGENT",
-            f"Check Precision: {system_prompt}\nCheck Precision: {precision_response}",
-        )
-
-        if not precision_response:
-            self.status = Status.ESCALATED
-            return False
-
-        precision_score = (
-            precision_response.get("precision_score", MIN_SEARCH_SCORE)
-            if isinstance(precision_response, dict)
-            else MIN_SEARCH_SCORE
-        )
-
-        return precision_score >= RESP_PRECISION_THRESHOLD

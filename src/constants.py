@@ -165,52 +165,6 @@ Return ONLY a valid JSON object wrapped inside a markdown code block (```json ..
 }}```
 """.strip()
 
-
-FILTER_DOC_PROMPT2 = """
-You are an AI Support Response Specialist. Your task is to draft a user-facing response to a support ticket using ONLY the provided retrieved context documents.
-
-## SUPPORT TICKET
-Subject: {subject}
-Issue: {issue}
-
-## RETRIEVED CONTEXT DOCUMENTS
-{documents}
-
-## TASK INSTRUCTIONS:
-1. Answer the support ticket issue using ONLY facts present in the context documents above. Do not assume or extrapolate policies[span_0](start_span)[span_0](end_span).
-2. Cite the specific `chunk_idx` backing each claim in your response.
-3. If the context does not contain enough information to answer the ticket, set `grounded` to false and state what information is missing in `reasoning`.
-
-##### Task Directives:
-1. **Out-of-Scope Queries:** If the ticket is unrelated to supported software/services (e.g., general trivia, pop culture, unsupported third-party tools), set request_type to "invalid", status to "Replied", and set response to:
-   "Thank you for contacting support. This request appears to be out of scope for our support services, so we are unable to assist further."
-
-2. **Missing Context / Escalations:** If the ticket describes a valid product issue but <retrieved_context> lacks sufficient documentation to answer it accurately (or if grounded is false):
-   - Set status to "Escalated".
-   - Set response to standard escalation phrasing[cite: 3, 5]:
-     "This information is not available in our current documentation. Your ticket has been escalated to a support specialist who will assist you further."[cite: 3, 5]
-
-##### JSON Schema:
-{
-  "grounded": false,
-  "status": "Replied|Escalated",
-  "request_type": "product_issue|feature_request|bug|invalid",
-  "response": "Grounded answer, standardized out-of-scope declination, or standardized escalation phrase.",
-  "reasoning": "Concise justification for why the context is sufficient or insufficient."
-}
-
-## OUTPUT REQUIREMENTS:
-Return ONLY a valid JSON object wrapped inside a markdown code block (```json ... ```) matching this schema:
-
-```json
-{{
-"grounded": true,
-"response": "Detailed support response grounded strictly in the documentation.",
-"cited_chunks": [0],
-"reasoning": "Concise justification for why the context is sufficient or insufficient."
-}}```
-""".strip()
-
 # Verifying Ground Response
 GROUND_RESPONSE_PROMPT = """
 You are an AI Quality Assurance Specialist evaluating RAG groundedness.

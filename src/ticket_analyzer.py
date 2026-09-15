@@ -51,10 +51,13 @@ class TicketAnalyzer:
 
         documents = []
         if self._agent.status == Status.ESCALATED:
-            # Hard gate: make_decision() already escalated on risk signals
-            # alone. Skip retrieval and the 3-LLM-call groundness pipeline
-            # entirely — nothing there can un-escalate a ticket already
-            # flagged as risky, so don't spend the tokens finding out.
+            """
+            Hard gate: make_decision() already escalated on risk signals
+            alone. Skip retrieval and the 3-LLM-call groundness pipeline
+            entirely — nothing there can un-escalate a ticket already
+            flagged as risky, so don't spend the tokens finding out.
+            """
+
             log_chat_transcript(
                 "🎟️ TICKET_ANALYZER",
                 "🚩 Hard-escalated pre-retrieval: "
@@ -93,17 +96,9 @@ class TicketAnalyzer:
 
         # Assuming all the values are the most accurate from the retrieved
         # documents build a final prompt for final analysis.
+
         ticket_columns = prettify_cols(ticket_df)
         agent_dataset = self._agent.export(ticket_columns)
-        self._ticket = agent_dataset
-
-        # Load Prompt Builder to get the prompt
-        dataset = agent_dataset | {
-            "document_chunks": documents,
-            "row_index": self._row_index,
-        }
-
-        builder = PromptBuilder(dataset)
 
         """
         Returns output.  Use three inputs and 5 outputs (
@@ -114,6 +109,16 @@ class TicketAnalyzer:
             request_ type
             ) to create the output.csv row
         """
+
+        self._ticket = agent_dataset
+
+        # Load Prompt Builder to get the prompt
+        dataset = agent_dataset | {
+            "document_chunks": documents,
+            "row_index": self._row_index,
+        }
+
+        builder = PromptBuilder(dataset)
 
         return self._get_output(builder.prompt.strip())
 
