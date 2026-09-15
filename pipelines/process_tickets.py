@@ -52,7 +52,7 @@ def run_process_tickets_pipeline(
             time.sleep(PAUSE_TIMER)
 
             log_chat_transcript(
-                "TICKET_PIPELINE", get_progress_bar(idx, row_count)
+                "🎟️ TICKET_PIPELINE", get_progress_bar(idx, row_count)
             )
 
             output_rows.append(output_row)

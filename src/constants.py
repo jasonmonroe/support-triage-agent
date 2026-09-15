@@ -124,6 +124,55 @@ You are an AI Support Response Specialist. Your task is to draft a user-facing r
 Subject: {subject}
 Issue: {issue}
 
+{documents}
+
+## TASK INSTRUCTIONS:
+1. Answer the support ticket issue using ONLY facts present in the context documents above. Do not assume or extrapolate policies.
+2. Cite the specific `chunk_idx` backing each claim in your response inside the `cited_chunks` array.
+3. If the context does not contain enough information to answer the ticket, set `grounded` to false, set `cited_chunks` to `[]`, and explain what information is missing in `reasoning`.
+
+##### Task Directives:
+1. **Out-of-Scope Queries:** If the ticket is unrelated to supported software/services (e.g., general trivia, pop culture, unsupported third-party tools), set `request_type` to "invalid", `status` to "Replied", `grounded` to false, `cited_chunks` to `[]`, and set `response` to:
+   "Thank you for contacting support. This request appears to be out of scope for our support services, so we are unable to assist further."
+
+2. **Missing Context / Escalations:** If the ticket describes a valid product issue but <retrieved_context_documents> lacks sufficient documentation to answer it accurately (or if `grounded` is false):
+   - Set `status` to "Escalated".
+   - Set `request_type` to "product_issue".
+   - Set `grounded` to false.
+   - Set `cited_chunks` to `[]`.
+   - Set `response` to:
+     "This information is not available in our current documentation. Your ticket has been escalated to a support specialist who will assist you further."
+
+##### JSON Output Schema:
+- `grounded` (boolean): `true` if fully answered by context, `false` otherwise.
+- `status` (string): "Replied" or "Escalated".
+- `request_type` (string): "product_issue", "feature_request", "bug", or "invalid".
+- `response` (string): Grounded answer, standard out-of-scope message, or standard escalation message.
+- `cited_chunks` (list of integers): Array of `chunk_idx` numbers used. Empty array `[]` if ungrounded or escalated.
+- `reasoning` (string): Concise explanation for the decision.
+
+## OUTPUT REQUIREMENTS:
+Return ONLY a valid JSON object wrapped inside a markdown code block (```json ... ```) matching the schema:
+
+```json
+{{
+  "grounded": true,
+  "status": "Replied",
+  "request_type": "product_issue",
+  "response": "Detailed support response grounded strictly in the documentation.",
+  "cited_chunks": [0],
+  "reasoning": "Concise justification for why the context is sufficient or insufficient."
+}}```
+""".strip()
+
+
+FILTER_DOC_PROMPT2 = """
+You are an AI Support Response Specialist. Your task is to draft a user-facing response to a support ticket using ONLY the provided retrieved context documents.
+
+## SUPPORT TICKET
+Subject: {subject}
+Issue: {issue}
+
 ## RETRIEVED CONTEXT DOCUMENTS
 {documents}
 
@@ -131,6 +180,24 @@ Issue: {issue}
 1. Answer the support ticket issue using ONLY facts present in the context documents above. Do not assume or extrapolate policies[span_0](start_span)[span_0](end_span).
 2. Cite the specific `chunk_idx` backing each claim in your response.
 3. If the context does not contain enough information to answer the ticket, set `grounded` to false and state what information is missing in `reasoning`.
+
+##### Task Directives:
+1. **Out-of-Scope Queries:** If the ticket is unrelated to supported software/services (e.g., general trivia, pop culture, unsupported third-party tools), set request_type to "invalid", status to "Replied", and set response to:
+   "Thank you for contacting support. This request appears to be out of scope for our support services, so we are unable to assist further."
+
+2. **Missing Context / Escalations:** If the ticket describes a valid product issue but <retrieved_context> lacks sufficient documentation to answer it accurately (or if grounded is false):
+   - Set status to "Escalated".
+   - Set response to standard escalation phrasing[cite: 3, 5]:
+     "This information is not available in our current documentation. Your ticket has been escalated to a support specialist who will assist you further."[cite: 3, 5]
+
+##### JSON Schema:
+{
+  "grounded": false,
+  "status": "Replied|Escalated",
+  "request_type": "product_issue|feature_request|bug|invalid",
+  "response": "Grounded answer, standardized out-of-scope declination, or standardized escalation phrase.",
+  "reasoning": "Concise justification for why the context is sufficient or insufficient."
+}
 
 ## OUTPUT REQUIREMENTS:
 Return ONLY a valid JSON object wrapped inside a markdown code block (```json ... ```) matching this schema:
@@ -141,7 +208,7 @@ Return ONLY a valid JSON object wrapped inside a markdown code block (```json ..
 "response": "Detailed support response grounded strictly in the documentation.",
 "cited_chunks": [0],
 "reasoning": "Concise justification for why the context is sufficient or insufficient."
-}}
+}}```
 """.strip()
 
 # Verifying Ground Response
@@ -168,7 +235,7 @@ Return ONLY a valid JSON object wrapped inside a markdown code block (```json ..
 {{
 "is_grounded": true,
 "reasoning": "Explanation of why citations pass or fail validation."
-}}
+}}```
 """.strip()
 
 # Precision Prompt
@@ -200,7 +267,7 @@ Return ONLY a valid JSON object wrapped inside a markdown code block (```json ..
 {{
 "precision_score": 0.95,
 "reasoning": "Concise explanation of why the response is precise or imprecise for this ticket."
-}}
+}}```
 """.strip()
 
 
@@ -247,11 +314,12 @@ Return ONLY the raw JSON object below — no markdown formatting, no code fences
 
 Follow this strict JSON schema. Each bracketed field lists its only allowed values — pick exactly one:
 
+```json
 {{
   "status": "Replied|Escalated",
   "product_area": "screen|privacy|general_support|travel_support|community|identity-management-sso-jit-scim|billing|account_access|api_integration|mobile_app|web_platform",
   "request_type": "product_issue|feature_request|bug|invalid",
   "response": "Grounded user response, polite out-of-scope declination, or human escalation message. If context is insufficient, state that the answer is not available in documentation and the ticket is being escalated.",
   "justification": "Concise reasoning for the assigned request_type, status, and product_area."
-}}
+}}```
 """.strip()

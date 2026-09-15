@@ -24,8 +24,8 @@ class PromptBuilder:
         ticket_data = self._get_ticket_data(dataset)
 
         # Build retreived context data to convert to XML
-        retrieved_context_data = self._get_retrieved_context_data(
-            dataset.get("document_chunks")
+        retrieved_context_data = self.get_retrieved_context_data(
+            dataset.get("document_chunks", [])
         )
 
         return USER_PROMPT_TEMPLATE.format(
@@ -48,7 +48,7 @@ class PromptBuilder:
 
     def _get_ticket_data(self, dataset: dict) -> dict:
         ticket_dict = {
-            "@id": dataset.get("row_index"),
+            "@id": dataset.get("row_index", None),
         }
 
         for key, value in dataset.items():
@@ -57,7 +57,7 @@ class PromptBuilder:
 
         return {"ticket": ticket_dict}
 
-    def _get_retrieved_context_data(self, document_chunks: list) -> dict:
+    def get_retrieved_context_data(self, document_chunks: list) -> dict:
         """
         Example:
         <retrieved_context>

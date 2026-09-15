@@ -41,7 +41,7 @@ class TicketAnalyzer:
         self._row_index = ticket_df.Index
         self._agent = self._get_agent(ticket_df)
         log_chat_transcript(
-            "TICKET_ANALYZER", f"Agent Loaded: {self._agent.title}."
+            "🎟️ TICKET_ANALYZER", f"Agent Loaded: {self._agent.title}."
         )
 
         # Classify the issue then identify req type, classify issue into a
@@ -56,7 +56,7 @@ class TicketAnalyzer:
             # entirely — nothing there can un-escalate a ticket already
             # flagged as risky, so don't spend the tokens finding out.
             log_chat_transcript(
-                "TICKET_ANALYZER",
+                "🎟️ TICKET_ANALYZER",
                 "🚩 Hard-escalated pre-retrieval: "
                 f"{self._agent.justification}",
             )
@@ -66,15 +66,16 @@ class TicketAnalyzer:
             documents = self._agent.retrieve_relevant_documents()
             show_timer(start_time)
 
+            """
             if len(documents) == 0:
                 log_chat_transcript(
-                    "TICKET_ANALYZER",
+                    "🎟️ TICKET_ANALYZER",
                     "🚨 ERROR: No retrieved documents found. 🚨",
                 )
                 return ""
             else:
                 log_chat_transcript(
-                    "TICKET_ANALYZER",
+                    "🎟️ TICKET_ANALYZER",
                     {
                         "message": (
                             f"Retrieved Document Count: {len(documents)}."
@@ -82,6 +83,7 @@ class TicketAnalyzer:
                         "documents": documents,
                     },
                 )
+            """
 
             # Run groundness on the retrieved documents
             start_time = start_timer()
