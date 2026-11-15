@@ -1,0 +1,82 @@
+issue,subject,company,response,product_area,status,request_type,justification
+I notice that people I assigned the test in October of 2025 have not received new tests. How long do the tests stay active in the system.,Test Active in the system,Hackerrank,The documentation does not provide specific details on the default duration tests remain active or automatic test assignments. Your ticket has been escalated to a support specialist for further review and assistance.,screen,Escalated,product_issue,"The customer is asking about test active duration and test delivery in HackerRank Screen. Since the retrieved context does not contain sufficient documentation regarding default active durations or automatic test delivery, the ticket must be escalated."
+site is down & none of the pages are accessible,,,"Thank you for reporting this issue. Our team has been notified that the site is down and pages are inaccessible, and this ticket is being escalated to our technical specialists for immediate investigation.",web_platform,Escalated,bug,"The ticket reports a critical site downtime/outage issue. In accordance with guidelines, site downtime and critical bug reports must be categorized as a bug and escalated to technical support specialists."
+"I'm noticing that you all have many default versions of roles. (e.g. front end developer for react, angular, vue.js, etc.) What do you consider best practice 
+for when to create a new test versus create a variant of the test? What are the advantages and disadvantages of using variants?","When should I create a variant versus
+ have a different test?",Hackerrank,Detailed best practice guidelines and the specific trade-offs or disadvantages of using test variants versus creating separate tests are not available in our documentation. Your ticket has been escalated to a support specialist for further guidance.,screen,Escalated,product_issue,"The user is asking for best practices and the advantages/disadvantages of creating a new test versus test variants. While documentation mentions benefits of test variants, it lacks explicit guidance on trade-offs/disadvantages and criteria for choosing separate tests, requiring escalation."
+"Hi there
+
+We have sent a candidate a Hackerrank assessment already, but we have been informed that they require extra time. As the assessment is 105 minutes, they need an extra 50% extra time added (so around 53 minutes) in addition.
+
+Please can you provide step-by-step instruction on how we are to reinvite them.
+
+Do we find their profile in 'Candidates' , put in Add time 53 minutes and then click 'reinvite' and send the email? The email to the candidate says 105 minutes as the duration though still so not sure how we can check?
+
+Thanks","How to reinvite candidate to Hackerrank 
+assessment and add extra time",Hackerrank,"Depending on whether your candidate has already started the assessment or if you need to send a new invitation with accommodations, here are the steps to extend test duration and reinvite them:
+
+### 1. Adding Time Accommodation (50% Extra Time) to an Existing Invite
+If the candidate has not yet started the test, you do not need to reinvite them. You can add time accommodation directly:
+1. Log in to **HackerRank for Work** and go to the **Tests** tab.
+2. Select your test and navigate to the **Candidates** tab.
+3. Check the box next to the candidate.
+4. Click **More > Add Time Accommodation**.
+5. Enter the accommodation percentage (e.g., 50%) and click **Save**.
+
+### 2. Setting Time Accommodation Before Sending an Invite
+If you want the email/invite template duration to reflect the accommodation:
+1. Open the test and click **Invite**.
+2. Select the **Time Accommodation** dropdown in the upper-right corner and choose **50%**.
+3. The system will update the invite template with the modified duration before you send the invitation.
+
+### 3. How to Reinvite a Candidate
+If you need to re-issue an invitation:
+1. Go to the **Tests** tab and select the test.
+2. Go to the **Candidates** tab and select the checkbox next to the candidate.
+3. Click **Invite selected**.
+4. In the **Send Test Invites** section, click **Send invite**.
+5. When the prompt appears indicating the candidate has already attempted the test, click **Re-invite**.
+6. Click **Send invite** to confirm. 
+*(Note: Reinviting a candidate automatically deletes their previous test report.)*
+
+### 4. Adding Time in Minutes (Add Time)
+If you prefer to add minutes manually instead of using a percentage:
+1. Go to the **Candidates** tab and select the candidate.
+2. Click **More > Add Time**.
+3. Enter the duration in minutes (e.g., 53) and click **Confirm**.
+*(Note: If a candidate is in an active test session, they must refresh the page to see the updated timer; if they completed the test, they must log in again to view the added time.)*",screen,Replied,product_issue,"The user is asking how to reinvite a candidate and apply extra time (50% / 53 minutes) in HackerRank Screen. The retrieved documentation provides exact instructions for adding time accommodations, reinviting candidates, and adding extra time in minutes. The ticket can be fully answered without escalation."
+"i signed up using google login on hackerrank community , so i do not have a separate hackerrank password. please delete my account",,Hackerrank,"If you signed up using a third-party account such as Google, you must set an account password before you can delete your account.
+
+First, set a password by following these steps:
+1. Go to the HackerRank Community login page (https://www.hackerrank.com/auth/login).
+2. Click ""Forgot Password?"" under the password field.
+3. Enter the email address or username associated with your account and select the verification checkbox.
+4. Click ""Send Reset Link"".
+5. Check your email and follow the instructions in the reset email to set a new password.
+
+Once your password is set, you can delete your account by following these steps:
+1. Log in to the HackerRank Community using your credentials.
+2. Click your profile icon in the top-right corner and select ""Settings"".
+3. Scroll down to the ""Delete Accounts"" section and click ""Delete Account"".
+4. Select a reason for deleting your account from the options provided and click ""Proceed to Delete"".
+5. Enter your newly set account password.
+6. Click ""Proceed to delete"" again to confirm and complete the deletion.
+
+Please note that deleting your account permanently removes all your data, such as your profile, badges, and leaderboard positions.",community,Replied,product_issue,The ticket asks how to delete an account created via Google login without a password. Documentation explains that third-party sign-up users must set a password via the Forgot Password reset flow and then proceed through the self-service account deletion workflow in settings.
+"One of my claude conversations has some private info, i forgot to make a temporary chat, is there anything
+ else that can be done? like delete etc?",,Claude,The retrieved documentation does not provide sufficient details on deleting an existing conversation or removing sensitive data from previous chats. Your inquiry has been escalated to a support specialist for further assistance.,privacy,Escalated,product_issue,"The user is asking how to handle or delete a regular conversation that contains private information. The retrieved context lacks complete documentation explaining how to delete conversations or manage sensitive data post-submission, requiring escalation."
+What is the name of the actor in Iron Man?,"Urgent, please help",,"Thank you for reaching out. We are only able to assist with inquiries directly related to our products and services. As your question regards general entertainment trivia and is outside the scope of our support, we are unable to assist with this request.",general_support,Replied,invalid,"The ticket asks a general pop culture trivia question unrelated to supported software or services. Per the task directives for out-of-scope queries, request_type is set to invalid and status is set to Replied with a polite declination."
+I bought Visa Traveller's Cheques from Citicorp and they were stolen in Lisbon last night. What do I do?,,Visa,"If your Visa Traveller's Cheques have been stolen, please follow these steps:
+
+1. **Notify the police** regarding the theft.
+2. **Contact Citicorp (the issuing bank) immediately** to report the stolen cheques:
+   - **Freephone:** 1-800-645-6556
+   - **Collect:** 1-813-623-1709
+   - **Hours:** Monday–Friday, 6:30 am to 2:30 pm EST. Automated cheque verification is available 24/7 (if you select English or Spanish). Outside of these hours, calls are recorded and responded to the next business day.
+3. **Request a refund or replacement:** Cheques can be replaced or refunded subject to terms and conditions, typically within 24 hours. Have the following information ready before calling:
+   - Cheque serial numbers
+   - Where and when you bought the cheques
+   - How and when the cheques were lost or stolen
+   - Issuer of the cheques (Citicorp)",travel_support,Replied,product_issue,"The ticket asks for guidance on stolen Visa Traveller's Cheques issued by Citicorp. The retrieved documentation provides exact instructions for reporting stolen cheques, contact details for Citicorp, and requirements for obtaining a refund or replacement."
+Where can I report a lost or stolen Visa card from India?,Card stolen,Visa,"To report a lost or stolen Visa card from India, you can call Visa at 000-800-100-1219. Alternatively, you can contact Visa's Global Customer Assistance Services (GCAS) 24/7 from anywhere in the world at +1 303 967 1090 or visit the [Lost or Stolen card](/support/consumer/lost-stolen-card.html) page to report and block your card.",general_support,Replied,product_issue,The ticket is a standard support inquiry regarding how to report a lost or stolen card. The retrieved documentation provides explicit contact information and reporting instructions for India and worldwide.
+Thank you for helping me,,,You're very welcome! Please feel free to reach out again if you need any further assistance.,general_support,Replied,invalid,The ticket is a courtesy note expressing thanks rather than an actionable product inquiry or issue. It is categorized as invalid and closed with a polite acknowledgment.
